@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 # Configuration de la page
@@ -118,65 +119,110 @@ try:
         # --- Visualisation 3D avec Plotly ---
         st.subheader("Visualisation des Blocs")
         
-        # Préparer les données pour le graphique
-        plot_data = []
-        for block in yard_data['blocks']:
-            for stack in block['stacks']:
-                # The API returns 'slots' list which contains 'container_id'
-                slots = stack.get('slots', [])
-                containers_in_stack = [s.get('container_id') for s in slots if not s.get('is_free')]
-                container_ids_str = "<br>".join([f"Niv {i+1}: {cid}" for i, cid in enumerate(containers_in_stack)])
-                
-                plot_data.append({
-                    "Bloc": block['block_id'],
-                    "Rangée": stack['row'],
-                    "Hauteur": stack['current_height'],
-                    "Max": stack['max_height'],
-                    "Conteneurs": container_ids_str if container_ids_str else "Vide"
-                })
-        
-        df = pd.DataFrame(plot_data)
-        
         # Filtre par bloc
-        blocks = df['Bloc'].unique()
+        blocks = [b['block_id'] for b in yard_data['blocks']]
         selected_block = st.selectbox("Sélectionner un Bloc à visualiser :", blocks)
         
-        df_block = df[df['Bloc'] == selected_block]
+        # Trouver les données du bloc sélectionné
+        block_data = next((b for b in yard_data['blocks'] if b['block_id'] == selected_block), None)
         
-        # Graphique en barres 3D simulé / Histogramme
-        fig = px.bar(
-            df_block, 
-            x='Rangée', 
-            y='Hauteur', 
-            title=f"Hauteur des piles - Bloc {selected_block}",
-            labels={'Rangée': 'Numéro de rangée', 'Hauteur': 'Conteneurs empilés'},
-            color='Hauteur',
-            color_continuous_scale="Viridis",
-            range_y=[0, yard_data['max_height'] + 1],
-            hover_data={"Conteneurs": True, "Bloc": False, "Max": False}
-        )
-        # Ajouter une ligne pour la capacité max
-        fig.add_hline(y=yard_data['max_height'], line_dash="dash", line_color="red", annotation_text="Hauteur Maximum")
-        
-        # Mettre en évidence le dernier conteneur placé (si on regarde son bloc)
-        last_placed = st.session_state.last_placed
-        if last_placed and last_placed['block'] == selected_block:
-            fig.add_annotation(
-                x=last_placed['row'],
-                y=last_placed['tier'],  # pointer vers le haut du conteneur
-                text="📍 NOUVEAU",
-                showarrow=True,
-                arrowhead=2,
-                arrowcolor="red",
-                arrowsize=1.5,
-                arrowwidth=2,
-                font=dict(color="red", size=14, family="Arial Black")
-            )
+        if block_data:
+            fig = go.Figure()
+
+            def add_cube_trace(fig, x_coords, y_coords, z_coords, color, name, hover_texts):
+                """Ajoute un groupe de conteneurs comme un seul Mesh3d pour la performance"""
+                if not x_coords: return
+                
+                X, Y, Z, I, J, K = [], [], [], [], [], []
+                # Ajuster la taille des cubes pour laisser un petit espace entre eux
+                dx, dy, dz = 0.8, 0.8, 0.9 
+                
+                for idx, (x, y, z) in enumerate(zip(x_coords, y_coords, z_coords)):
+                    offset = idx * 8
+                    X.extend([x, x+dx, x+dx, x, x, x+dx, x+dx, x])
+                    Y.extend([y, y, y+dy, y+dy, y, y, y+dy, y+dy])
+                    Z.extend([z, z, z, z, z+dz, z+dz, z+dz, z+dz])
+                    
+                    i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
+                    j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
+                    k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
+                    
+                    I.extend([v + offset for v in i])
+                    J.extend([v + offset for v in j])
+                    K.extend([v + offset for v in k])
+                
+                mesh = go.Mesh3d(
+                    x=X, y=Y, z=Z,
+                    i=I, j=J, k=K,
+                    color=color,
+                    opacity=0.9,
+                    flatshading=True,
+                    name=name,
+                    showscale=False,
+                    text=hover_texts, # Répéter le texte pour chaque point ne marche pas super bien avec Mesh3d au hover.
+                    hoverinfo='name'  # Simplification du hover pour Mesh3d
+                )
+                fig.add_trace(mesh)
+
+            # Séparer les conteneurs normaux du "dernier placé" pour les colorer différemment
+            last_placed = st.session_state.last_placed
             
-            # Message informatif pour l'utilisateur
-            st.info(f"👉 Le dernier conteneur vient d'être posé à l'emplacement indiqué par la flèche rouge (Bloc {last_placed['block']}, Rangée {last_placed['row']}, Hauteur {last_placed['tier']}).")
-        
-        st.plotly_chart(fig, use_container_width=True)
+            x_norm, y_norm, z_norm = [], [], []
+            x_last, y_last, z_last = [], [], []
+            
+            for stack in block_data['stacks']:
+                # The API returns 'slots' list which contains 'container_id'
+                slots = stack.get('slots', [])
+                for s in slots:
+                    if not s.get('is_free'):
+                        tier_index = s['tier'] - 1 # 0-indexed for 3D coordinates
+                        row_index = stack['row'] - 1 # 0-indexed
+                        
+                        is_last = False
+                        if last_placed and last_placed['block'] == selected_block:
+                            if last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']:
+                                is_last = True
+                                
+                        if is_last:
+                            x_last.append(row_index)
+                            y_last.append(0) # On n'affiche qu'un bloc à la fois, le Y est toujours 0
+                            z_last.append(tier_index)
+                        else:
+                            x_norm.append(row_index)
+                            y_norm.append(0)
+                            z_norm.append(tier_index)
+
+            # Ajouter tous les conteneurs normaux
+            add_cube_trace(fig, x_norm, y_norm, z_norm, color='#2ca02c', name=f'Conteneurs', hover_texts=[])
+            
+            # Ajouter le dernier conteneur en évidence (Rouge)
+            if x_last:
+                add_cube_trace(fig, x_last, y_last, z_last, color='#d62728', name='Nouveau Conteneur', hover_texts=[])
+                st.info(f"👉 Le dernier conteneur vient d'être posé en rouge (Bloc {last_placed['block']}, Rangée {last_placed['row']}, Hauteur {last_placed['tier']}).")
+
+            # Dessiner le sol du bloc pour le repère visuel
+            max_r = yard_data['n_rows']
+            fig.add_trace(go.Mesh3d(
+                x=[-0.5, max_r-0.5, max_r-0.5, -0.5],
+                y=[-0.5, -0.5, 1.5, 1.5],
+                z=[0, 0, 0, 0],   
+                i=[0, 0], j=[1, 2], k=[2, 3],
+                color='gray', opacity=0.3, name='Sol', hoverinfo='skip'
+            ))
+
+            fig.update_layout(
+                scene=dict(
+                    xaxis=dict(title='Rangée', range=[-1, yard_data['n_rows']], dtick=1),
+                    yaxis=dict(title='', range=[-1, 2], showticklabels=False), # Cacher l'axe Y (un seul bloc)
+                    zaxis=dict(title='Niveau', range=[0, yard_data['max_height'] + 1], dtick=1),
+                    aspectmode='manual',
+                    aspectratio=dict(x=2, y=0.5, z=1) # Allonger selon les rangées
+                ),
+                title=f"Vue 3D - Bloc {selected_block}",
+                margin=dict(l=0, r=0, b=0, t=40)
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
         
         # --- Liste détaillée des blocs ---
         with st.expander("Voir les détails chiffrés par bloc"):
