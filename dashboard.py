@@ -27,8 +27,8 @@ API_URL = "http://127.0.0.1:8000"
 if 'last_placed' not in st.session_state:
     st.session_state.last_placed = None
 
-st.title("Tableau de Bord : Optimisation du Container Yard")
-st.markdown("Interface utilisateur pour visualiser le parc en 3D et placer de nouveaux conteneurs via l'API.")
+st.title("Tableau de Bord pour l'Optimisation et la gestion d’un parc de conteneurs ")
+
 
 # --- BARRE LATÉRALE ---
 st.sidebar.header("Configuration du Yard")
@@ -59,8 +59,46 @@ if init_btn:
 
 st.sidebar.divider()
 
+# --- Housekeeping (Tabu Search) ---
+st.sidebar.header("🔧 Housekeeping (Off-Peak)")
+st.sidebar.caption("Réorganise le yard pour éliminer les rehandles existants.")
+
+if st.sidebar.button("▶ Lancer le Tabu Search", use_container_width=True, type="primary"):
+    with st.sidebar:
+        with st.spinner("Tabu Search en cours..."):
+            try:
+                hk_resp = requests.post(f"{API_URL}/yard/housekeeping", json={
+                    "max_iterations": 200,
+                    "tabu_tenure": 15,
+                    "max_no_improve": 50,
+                })
+                if hk_resp.status_code == 200:
+                    hk = hk_resp.json()
+                    if hk["rehandles_reduced"] > 0:
+                        st.success(f"✅ {hk['rehandles_reduced']} rehandle(s) éliminé(s) en {hk['moves_made']} mouvements")
+                        col_a, col_b = st.columns(2)
+                        col_a.metric("Avant", hk["initial_rehandles"], delta=None)
+                        col_b.metric("Après", hk["final_rehandles"],
+                                     delta=f"-{hk['rehandles_reduced']}", delta_color="inverse")
+                        st.progress(hk["improvement_pct"] / 100,
+                                    text=f"Amélioration : {hk['improvement_pct']}%")
+                    else:
+                        st.info("✅ Yard déjà optimal — aucun rehandle détecté.")
+                else:
+                    st.error(f"Erreur API : {hk_resp.text}")
+            except requests.exceptions.ConnectionError:
+                st.error("🚨 API non accessible.")
+
+st.sidebar.divider()
+
 st.sidebar.header(" Nouveau Conteneur")
 with st.sidebar.form("placement_form"):
+    # Définition des zones dédiées
+    st.markdown("**Zones Dédiées (Optionnel)**")
+    
+    zones_20ft = st.multiselect("Blocs 20ft", options=["A", "B", "C", "D"], default=["A", "B"])
+    zones_40ft = st.multiselect("Blocs 40ft", options=["A", "B", "C", "D"], default=["C", "D"])
+    
     c_size = st.selectbox("Taille (EVP)", options=[20, 40])
     c_weight = st.slider("Poids (Tonnes)", min_value=5.0, max_value=30.0, value=15.0, step=0.5)
     c_type = st.selectbox("Type", options=["import", "export", "transshipment"])
@@ -78,7 +116,9 @@ if submit:
         "size": c_size,
         "weight": c_weight,
         "type": c_type,
-        "departure_time": departure_dt
+        "departure_time": departure_dt,
+        "zones_20ft": zones_20ft if c_size == 20 else [],
+        "zones_40ft": zones_40ft if c_size == 40 else []
     }
     
     with st.spinner("Analyse par le moteur d'optimisation..."):

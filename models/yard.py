@@ -102,6 +102,20 @@ class Stack:
                 return slot
         return None
 
+    def get_container_sizes(self, containers_registry: dict) -> set:
+        """
+        Retourne l'ensemble des tailles (en pieds) des conteneurs présents dans
+        cette pile. Exemple : {20} si seuls des 20ft, {40} si seuls des 40ft.
+        Utilise le registre du Yard pour retrouver les objets Container.
+        """
+        sizes: set = set()
+        for slot in self.slots:
+            if slot.container_id and slot.container_id in containers_registry:
+                container = containers_registry[slot.container_id]
+                if hasattr(container, 'size'):
+                    sizes.add(container.size)
+        return sizes
+
     def get_containers_above(self, tier: int) -> List[str]:
         """
         Retourne les IDs de conteneurs au-dessus d'un niveau donné.

@@ -38,13 +38,39 @@ OPTIMALITY_THRESHOLD: float = 1.0
 # Filtrage des slots valides
 # ---------------------------------------------------------------------------
 
-def get_valid_slots(container: Container, yard: Yard) -> List[Slot]:
+def get_valid_slots(
+    container: Container,
+    yard: Yard,
+    allowed_blocks: Optional[List[str]] = None,
+    strict_edd: bool = True,
+) -> List[Slot]:
     """
     Retourne la liste des slots physiquement valides pour ce conteneur.
+
+    Parameters
+    ----------
+    strict_edd : bool
+        Si True (défaut), applique la règle EDD stricte : refuse tout slot
+        où le conteneur entrant partirait APRÈS un conteneur déjà en dessous.
+        Si False, désactive ce filtre et laisse le scorer pénaliser les rehandles.
     """
     valid_slots: List[Slot] = []
 
-    for block in yard.blocks.values():
+    # --- Dedicated Zones Logic ---
+    # Example policy: Blocks A and B are for 20ft only.
+    #                 Blocks C and D are for 40ft only.
+    if allowed_blocks is None:
+        allowed_blocks = []
+        if container.size == 20:
+            allowed_blocks = ['A', 'B']  # Adjust based on your actual block IDs if they differ
+        elif container.size == 40:
+            allowed_blocks = ['C', 'D']
+
+    for block_id, block in yard.blocks.items():
+        # Only check blocks dedicated to this container size
+        if allowed_blocks and block_id not in allowed_blocks:
+            continue
+            
         for stack in block.stacks.values():
 
             next_slot = stack.top_free_slot
@@ -53,6 +79,14 @@ def get_valid_slots(container: Container, yard: Yard) -> List[Slot]:
 
             if next_slot.tier != stack.current_height + 1:
                 continue
+
+            # --- Règle d'homogénéité de taille ---
+            # Une pile ne doit contenir que des conteneurs de la même taille.
+            # Si la pile n'est pas vide, vérifier que la taille correspond.
+            if stack.current_height > 0:
+                existing_sizes = stack.get_container_sizes(yard.containers_registry)
+                if existing_sizes and container.size not in existing_sizes:
+                    continue  # La pile contient déjà une autre taille
 
             # Règle spécifique 40ft
             if container.size == 40:
@@ -64,6 +98,23 @@ def get_valid_slots(container: Container, yard: Yard) -> List[Slot]:
                     continue
                 if adjacent_stack.current_height != stack.current_height:
                     continue
+
+            # --- Règle EDD (Earliest Departure Date) ---
+            # Appliquée uniquement en mode strict pour éviter les rehandles.
+            # En mode dégradé (strict_edd=False), le scorer pénalise à la place.
+            if strict_edd:
+                edd_violation = False
+                for below_slot in stack.slots:
+                    if below_slot.tier >= next_slot.tier:
+                        break
+                    if not below_slot.container_id:
+                        continue
+                    below_container = yard.containers_registry.get(below_slot.container_id)
+                    if below_container and container.departure_time > below_container.departure_time:
+                        edd_violation = True
+                        break
+                if edd_violation:
+                    continue  # Rejeté en mode strict
 
             valid_slots.append(next_slot)
 
@@ -141,19 +192,31 @@ def find_best_slot(
     container: Container,
     yard: Yard,
     top_k: int = 10,
+    allowed_blocks: Optional[List[str]] = None
 ) -> Optional[Tuple[Slot, float]]:
     """
-    Trouve le slot optimal pour le conteneur via une approche Hybride :
-    1. Filtrage Top-K (Greedy Heuristic) pour réduire l'espace de recherche.
-    2. Recuit Simulé (Simulated Annealing) sur les candidats d'élite.
+    Trouve le slot optimal via une approche Hybride à 2 passes :
+
+    Passe 1 — EDD strict :
+        Ne considère que les slots sans rehandle (conteneur entrant repart
+        avant tous ceux déjà en dessous). Priorité absolue.
+
+    Passe 2 — Dégradé (si aucun slot EDD trouvé) :
+        Active tous les slots physiquement disponibles et laisse le scorer
+        pénaliser les rehandles — évite les faux « yard plein ».
+
+    Dans les deux cas : Filtrage Top-K (Greedy) + Recuit Simulé (SA).
     """
-    valid_slots = get_valid_slots(container, yard)
+    # --- Passe 1 : EDD strict ---
+    valid_slots = get_valid_slots(container, yard, allowed_blocks, strict_edd=True)
 
     if not valid_slots:
-        return None  # yard plein
+        # --- Passe 2 : EDD relaxé (fallback) ---
+        valid_slots = get_valid_slots(container, yard, allowed_blocks, strict_edd=False)
+        if not valid_slots:
+            return None  # Yard vraiment plein (physiquement)
 
     if len(valid_slots) == 1:
-        # Pas d'optimisation nécessaire s'il n'y a qu'un choix
         try:
             return valid_slots[0], calculate_score(valid_slots[0], container, yard)
         except ValueError:
@@ -188,11 +251,12 @@ def is_placement_optimal(
     container: Container,
     yard: Yard,
     threshold: float = OPTIMALITY_THRESHOLD,
+    allowed_blocks: Optional[List[str]] = None
 ) -> Tuple[bool, str, float]:
     """
     Évalue si un emplacement proposé est proche de l'optimisation maximale trouvée.
     """
-    valid_slots = get_valid_slots(container, yard)
+    valid_slots = get_valid_slots(container, yard, allowed_blocks)
     valid_keys = {s.position_key for s in valid_slots}
 
     if proposed_slot.position_key not in valid_keys:
@@ -204,7 +268,7 @@ def is_placement_optimal(
         return False, "Placement physiquement impossible (poids instable).", float('inf')
 
     # Exécuter l'heuristique pour trouver le "meilleur" score estimé
-    best_result = find_best_slot(container, yard)
+    best_result = find_best_slot(container, yard, allowed_blocks=allowed_blocks)
     if best_result is None:
         return False, "Aucun slot disponible dans le yard.", float('inf')
 
@@ -234,12 +298,13 @@ def placement_report(
     container: Container,
     yard: Yard,
     proposed_slot: Optional[Slot] = None,
+    allowed_blocks: Optional[List[str]] = None
 ) -> dict:
     """
     Génère un rapport de l'assignation du nouveau conteneur.
     """
-    best_result = find_best_slot(container, yard)
-    valid_slots = get_valid_slots(container, yard)
+    best_result = find_best_slot(container, yard, allowed_blocks=allowed_blocks)
+    valid_slots = get_valid_slots(container, yard, allowed_blocks=allowed_blocks)
 
     report = {
         "container_id": container.id,
@@ -266,7 +331,7 @@ def placement_report(
         report["error"] = "Aucun slot disponible dans le yard."
 
     if proposed_slot is not None:
-        is_opt, reason, gap = is_placement_optimal(proposed_slot, container, yard)
+        is_opt, reason, gap = is_placement_optimal(proposed_slot, container, yard, allowed_blocks=allowed_blocks)
         report["proposed_evaluation"] = {
             "slot": proposed_slot.position_key,
             "is_optimal": is_opt,

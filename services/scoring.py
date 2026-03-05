@@ -186,6 +186,14 @@ def calculate_score(slot: Slot, container: Container, yard: Yard) -> float:
     if stack is None:
         raise ValueError(f"Rangée inconnue : {slot.row} dans bloc {slot.block_id!r}")
 
+    # --- Strict Check: Weight Instability ---
+    if slot.tier > 1:
+        below_slot = stack.slots[slot.tier - 2]
+        if below_slot.container_id:
+            below_container = _find_container_in_yard(below_slot.container_id, yard)
+            if below_container and container.weight > below_container.weight:
+                raise ValueError("Placement physiquement impossible (poids instable).")
+
     # --- Critère 1 : Rehandles estimés ---
     rehandles = _estimate_rehandles(
         stack=stack,

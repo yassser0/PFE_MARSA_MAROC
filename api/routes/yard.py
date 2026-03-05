@@ -175,3 +175,68 @@ async def init_yard(request: YardInitRequest):
         message="Yard initialisé avec succès.",
         total_capacity=nouveau_yard.total_capacity
     )
+
+
+# ---------------------------------------------------------------------------
+# Endpoint Housekeeping (Tabu Search)
+# ---------------------------------------------------------------------------
+
+class HousekeepingRequest(BaseModel):
+    """Paramètres optionnels pour le housekeeping Tabu Search."""
+    max_iterations: int = 200
+    tabu_tenure: int = 15
+    max_no_improve: int = 50
+
+
+class HousekeepingResponse(BaseModel):
+    """Résultat du housekeeping."""
+    initial_rehandles: int
+    final_rehandles: int
+    rehandles_reduced: int
+    moves_made: int
+    iterations: int
+    improvement_pct: float
+    message: str
+
+
+@router.post(
+    "/housekeeping",
+    response_model=HousekeepingResponse,
+    summary="Housekeeping — Réorganisation Tabu Search",
+    description=(
+        "Lance l'algorithme de Recherche Tabou pour réorganiser les piles "
+        "existantes et éliminer les violations EDD (rehandles). "
+        "À exécuter en période creuse (off-peak)."
+    ),
+)
+async def run_housekeeping(request: HousekeepingRequest = HousekeepingRequest()):
+    """Déclenche le housekeeping Tabu Search sur le yard actuel."""
+    from api.main import app as _app
+    from services.housekeeping import run_tabu_search_housekeeping
+
+    yard = _app.state.yard
+
+    result = run_tabu_search_housekeeping(
+        yard=yard,
+        max_iterations=request.max_iterations,
+        tabu_tenure=request.tabu_tenure,
+        max_no_improve=request.max_no_improve,
+    )
+
+    msg = (
+        f"Housekeeping terminé : {result.rehandles_reduced} rehandle(s) éliminé(s) "
+        f"en {result.moves_made} mouvement(s) ({result.improvement_pct}% d'amélioration)."
+        if result.rehandles_reduced > 0
+        else "Yard déjà optimal — aucun rehandle détecté."
+    )
+
+    return HousekeepingResponse(
+        initial_rehandles=result.initial_rehandles,
+        final_rehandles=result.final_rehandles,
+        rehandles_reduced=result.rehandles_reduced,
+        moves_made=result.moves_made,
+        iterations=result.iterations,
+        improvement_pct=result.improvement_pct,
+        message=msg,
+    )
+

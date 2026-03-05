@@ -60,6 +60,14 @@ class ContainerRequest(BaseModel):
         None,
         description="Slot proposé à évaluer (optionnel). Si fourni, l'API indique s'il est optimal.",
     )
+    zones_20ft: Optional[list[str]] = Field(
+        None,
+        description="Liste des blocs dédiés aux conteneurs 20ft (ex: ['A', 'B'])",
+    )
+    zones_40ft: Optional[list[str]] = Field(
+        None,
+        description="Liste des blocs dédiés aux conteneurs 40ft (ex: ['C', 'D'])",
+    )
 
     @field_validator("size")
     @classmethod
@@ -160,8 +168,17 @@ async def place_container(
             tier=request.proposed_slot.tier,
         )
 
+    # Attach dynamic zones if provided.
+    # Use None (not []) so that get_valid_slots applies its default block-zone logic
+    # (20ft → blocks A/B, 40ft → blocks C/D) when no override is given.
+    allowed_blocks = None
+    if container.size == 20 and request.zones_20ft:
+        allowed_blocks = [z.upper() for z in request.zones_20ft]
+    elif container.size == 40 and request.zones_40ft:
+        allowed_blocks = [z.upper() for z in request.zones_40ft]
+
     # Générer le rapport de placement
-    report = placement_report(container, yard, proposed_slot=proposed_slot_obj)
+    report = placement_report(container, yard, proposed_slot=proposed_slot_obj, allowed_blocks=allowed_blocks)
 
     if report.get("best_slot") is None:
         raise HTTPException(
@@ -175,14 +192,16 @@ async def place_container(
         row=report["best_slot"]["row"],
         tier=report["best_slot"]["tier"],
     )
-    success = yard.place_container(best_slot, container.id)
+    # Pass the full Container object so yard.containers_registry is populated
+    # (the optimizer reads this registry to enforce size-homogeneity between stacks)
+    success = yard.place_container(best_slot, container)
     if not success:
         raise HTTPException(
             status_code=409,
             detail=f"Impossible de placer le conteneur au slot {best_slot.position_key}.",
         )
 
-    # Enregistrer le conteneur dans le registre en mémoire
+    # Also keep the app-level registry in sync (used by the dashboard)
     container_registry[container.id] = container
 
     bd = report.get("score_breakdown") or {}
