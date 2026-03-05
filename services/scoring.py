@@ -186,13 +186,19 @@ def calculate_score(slot: Slot, container: Container, yard: Yard) -> float:
     if stack is None:
         raise ValueError(f"Rangée inconnue : {slot.row} dans bloc {slot.block_id!r}")
 
-    # --- Strict Check: Weight Instability ---
+    # --- Pénalité de poids (instabilité) ---
+    # Un conteneur plus lourd que celui du dessous est physiquement instable.
+    # Au lieu de lever une ValueError (qui bloque silencieusement le placement),
+    # on ajoute une pénalité très forte pour que l'optimiseur évite ce choix,
+    # mais le yard n'est jamais faussement déclaré plein.
+    # Le Housekeeping (Tabu Search) peut corriger ces placements hors-pic.
+    weight_penalty = 0.0
     if slot.tier > 1:
         below_slot = stack.slots[slot.tier - 2]
         if below_slot.container_id:
             below_container = _find_container_in_yard(below_slot.container_id, yard)
             if below_container and container.weight > below_container.weight:
-                raise ValueError("Placement physiquement impossible (poids instable).")
+                weight_penalty = 50.0  # Forte pénalité, mais non bloquant
 
     # --- Critère 1 : Rehandles estimés ---
     rehandles = _estimate_rehandles(
@@ -210,7 +216,7 @@ def calculate_score(slot: Slot, container: Container, yard: Yard) -> float:
     # --- Critère 3 : Distance approximative ---
     distance_score = WEIGHT_DISTANCE * _compute_distance_score(slot, yard)
 
-    total_score = rehandle_score + height_score + distance_score
+    total_score = rehandle_score + height_score + distance_score + weight_penalty
 
     return round(total_score, 4)
 

@@ -88,16 +88,6 @@ def get_valid_slots(
                 if existing_sizes and container.size not in existing_sizes:
                     continue  # La pile contient déjà une autre taille
 
-            # Règle spécifique 40ft
-            if container.size == 40:
-                adjacent_row = stack.row + 1
-                if adjacent_row > yard.n_rows:
-                    continue
-                adjacent_stack = block.stacks.get(adjacent_row)
-                if adjacent_stack is None or adjacent_stack.is_full:
-                    continue
-                if adjacent_stack.current_height != stack.current_height:
-                    continue
 
             # --- Règle EDD (Earliest Departure Date) ---
             # Appliquée uniquement en mode strict pour éviter les rehandles.

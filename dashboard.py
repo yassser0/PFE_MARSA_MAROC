@@ -26,8 +26,9 @@ API_URL = "http://127.0.0.1:8000"
 # Initialiser la variable d'état pour le dernier conteneur placé
 if 'last_placed' not in st.session_state:
     st.session_state.last_placed = None
+    
+st.title("🏗️ Tableau de Bord - Optimisation du Yard")
 
-st.title("Tableau de Bord pour l'Optimisation et la gestion d’un parc de conteneurs ")
 
 
 # --- BARRE LATÉRALE ---
