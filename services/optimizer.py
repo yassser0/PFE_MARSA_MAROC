@@ -43,6 +43,7 @@ def get_valid_slots(
     yard: Yard,
     allowed_blocks: Optional[List[str]] = None,
     strict_edd: bool = True,
+    strict_weight: bool = True,
 ) -> List[Slot]:
     """
     Retourne la liste des slots physiquement valides pour ce conteneur.
@@ -52,7 +53,9 @@ def get_valid_slots(
     strict_edd : bool
         Si True (défaut), applique la règle EDD stricte : refuse tout slot
         où le conteneur entrant partirait APRÈS un conteneur déjà en dessous.
-        Si False, désactive ce filtre et laisse le scorer pénaliser les rehandles.
+    strict_weight : bool
+        Si True (défaut), refuse tout slot où le conteneur entrant est 
+        plus lourd que le conteneur directement en dessous (stabilité).
     """
     valid_slots: List[Slot] = []
 
@@ -105,6 +108,15 @@ def get_valid_slots(
                         break
                 if edd_violation:
                     continue  # Rejeté en mode strict
+
+            # --- Règle de Stabilité (Poids) ---
+            # Un conteneur lourd ne doit pas être sur un plus léger.
+            if strict_weight and next_slot.tier > 1:
+                below_slot = stack.slots[next_slot.tier - 2]
+                if below_slot.container_id:
+                    below_container = yard.containers_registry.get(below_slot.container_id)
+                    if below_container and container.weight > below_container.weight:
+                        continue  # Rejeté car instable
 
             valid_slots.append(next_slot)
 
@@ -197,12 +209,25 @@ def find_best_slot(
 
     Dans les deux cas : Filtrage Top-K (Greedy) + Recuit Simulé (SA).
     """
-    # --- Passe 1 : EDD strict ---
-    valid_slots = get_valid_slots(container, yard, allowed_blocks, strict_edd=True)
+    # --- Passe 1 : EDD strict + Poids strict ---
+    valid_slots = get_valid_slots(
+        container, yard, allowed_blocks, strict_edd=True, strict_weight=True
+    )
 
     if not valid_slots:
-        # --- Passe 2 : EDD relaxé (fallback) ---
-        valid_slots = get_valid_slots(container, yard, allowed_blocks, strict_edd=False)
+        # --- Passe 2 : Dégradé (si aucun slot optimal trouvé) ---
+        # On relaxe d'abord l'EDD mais on garde si possible la stabilité
+        valid_slots = get_valid_slots(
+            container, yard, allowed_blocks, strict_edd=False, strict_weight=True
+        )
+        
+        if not valid_slots:
+            # Passe 3 : Désespoir (tout slot physique libre, même instable)
+            # La stabilité sera gérée par la pénalité de 50.0 dans le scorer.
+            valid_slots = get_valid_slots(
+                container, yard, allowed_blocks, strict_edd=False, strict_weight=False
+            )
+            
         if not valid_slots:
             return None  # Yard vraiment plein (physiquement)
 

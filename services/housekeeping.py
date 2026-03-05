@@ -3,12 +3,14 @@ services/housekeeping.py
 ========================
 Optimisation hors-pic (off-peak) du yard par Recherche Tabou (Tabu Search).
 
-Objectif : réorganiser les piles existantes pour éliminer les violations EDD
-(Earliest Departure Date) — c'est-à-dire les situations où un conteneur
-qui part plus tôt est bloqué par un conteneur qui part plus tard au-dessus de lui.
+Objectif : réorganiser les piles existantes pour éliminer :
+    1. Les violations EDD (Earliest Departure Date) — c'est-à-dire les situations 
+       où un conteneur qui part plus tôt est bloqué par un conteneur plus tard au-dessus.
+    2. Les violations de Stabilité (Poids) — situations où un conteneur lourd 
+       est posé sur un conteneur plus léger.
 
 Stratégie :
-    1. Calculer le coût global du yard (nb de paires rehandle existantes).
+    1. Calculer le coût global du yard (nb de violations existantes).
     2. Générer des mouvements candidats : déplacer un conteneur d'une pile
        vers le sommet d'une autre pile compatible.
     3. Sélectionner le meilleur mouvement non-tabou qui améliore le coût.
@@ -40,12 +42,13 @@ Move = Tuple[str, int, str, int]   # (src_block, src_row, dst_block, dst_row)
 # Calcul du coût global (nombre de paires rehandle dans tout le yard)
 # ---------------------------------------------------------------------------
 
-def _count_rehandle_pairs(yard: Yard) -> int:
+def _count_yard_violations(yard: Yard) -> int:
     """
-    Compte le nombre total de paires (container_bas, container_dessus) où
-    container_bas part AVANT container_dessus → rehandle inévitable.
+    Compte le nombre total de violations dans le yard :
+    - Rehandles (EDD) : container_bas part AVANT container_dessus.
+    - Instabilités (Poids) : container_bas est plus LÉGER que container_dessus.
     
-    Un coût de 0 signifie que le yard est parfaitement ordonné (EDD).
+    Un coût de 0 signifie que le yard est parfaitement ordonné et stable.
     """
     total = 0
     for block in yard.blocks.values():
@@ -54,14 +57,25 @@ def _count_rehandle_pairs(yard: Yard) -> int:
                 s for s in stack.slots
                 if s.container_id and s.container_id in yard.containers_registry
             ]
-            # Comparer chaque paire (bas, haut)
+            # Comparer chaque paire (bas, haut) pour EDD et Poids
             for i in range(len(occupied)):
+                c_low = yard.containers_registry[occupied[i].container_id]
+                
                 for j in range(i + 1, len(occupied)):
-                    c_low  = yard.containers_registry[occupied[i].container_id]
                     c_high = yard.containers_registry[occupied[j].container_id]
-                    # Le conteneur du haut part après celui du bas → rehandle
+                    
+                    # Violation 1 : EDD (Rehandle)
+                    # Le conteneur du haut part après celui du bas -> rehandle
                     if c_high.departure_time > c_low.departure_time:
                         total += 1
+                        
+                    # Violation 2 : Poids (Instabilité)
+                    # Uniquement pour le conteneur DIRECTEMENT au-dessus (j = i+1)
+                    # pour éviter le sur-comptage, ou pour toutes les paires ? 
+                    # Généralement, on regarde le contact direct.
+                    if j == i + 1:
+                        if c_high.weight > c_low.weight:
+                            total += 1
     return total
 
 
@@ -206,9 +220,9 @@ def _undo_move(yard: Yard, move: Move, container_id: str) -> None:
 @dataclass
 class HousekeepingResult:
     """Résultat de l'exécution du housekeeping."""
-    initial_rehandles: int
-    final_rehandles: int
-    rehandles_reduced: int
+    initial_violations: int
+    final_violations: int
+    violations_reduced: int
     moves_made: int
     iterations: int
     improvement_pct: float
@@ -222,7 +236,7 @@ def run_tabu_search_housekeeping(
 ) -> HousekeepingResult:
     """
     Exécute la Recherche Tabou pour reorganiser le yard et éliminer
-    les violations EDD existantes.
+    les violations EDD et de poids existantes.
 
     Parameters
     ----------
@@ -235,7 +249,7 @@ def run_tabu_search_housekeeping(
     -------
     HousekeepingResult : statistiques de l'optimisation
     """
-    initial_cost = _count_rehandle_pairs(yard)
+    initial_cost = _count_yard_violations(yard)
     current_cost = initial_cost
     best_cost    = initial_cost
     moves_made   = 0
@@ -279,7 +293,7 @@ def run_tabu_search_housekeeping(
             ok = _apply_move(yard, move)
             if not ok:
                 continue
-            candidate_cost = _count_rehandle_pairs(yard)
+            candidate_cost = _count_yard_violations(yard)
             _undo_move(yard, move, container_id)
 
             is_tabu = tabu_dict.get(move, 0) > iteration
@@ -306,13 +320,13 @@ def run_tabu_search_housekeeping(
         else:
             no_improve += 1
 
-    rehandles_reduced = initial_cost - best_cost
-    improvement_pct = (rehandles_reduced / initial_cost * 100) if initial_cost > 0 else 100.0
+    violations_reduced = initial_cost - best_cost
+    improvement_pct = (violations_reduced / initial_cost * 100) if initial_cost > 0 else 100.0
 
     return HousekeepingResult(
-        initial_rehandles=initial_cost,
-        final_rehandles=best_cost,
-        rehandles_reduced=rehandles_reduced,
+        initial_violations=initial_cost,
+        final_violations=best_cost,
+        violations_reduced=violations_reduced,
         moves_made=moves_made,
         iterations=min(max_iterations, iteration + 1),
         improvement_pct=round(improvement_pct, 1),
