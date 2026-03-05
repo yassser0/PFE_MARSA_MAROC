@@ -4,13 +4,21 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from streamlit_autorefresh import st_autorefresh
 
 # Configuration de la page
 st.set_page_config(
     page_title="Marsa Maroc - Optimisation Yard",
-    page_icon="🚢",
+    page_icon="image.png",
     layout="wide"
 )
+
+# --- Configuration du Mode Live (Auto-Refresh) ---
+# Si le mode live est activé, la page se recharge toutes les 2 secondes (2000 ms)
+live_mode = st.sidebar.checkbox("Activer le Streaming Live", value=False, help="Cochez pour voir les conteneurs s'empiler en direct.")
+if live_mode:
+    st_autorefresh(interval=2000, limit=None, key="data_streaming")
+
 
 # Constantes API
 API_URL = "http://127.0.0.1:8000"
@@ -19,11 +27,11 @@ API_URL = "http://127.0.0.1:8000"
 if 'last_placed' not in st.session_state:
     st.session_state.last_placed = None
 
-st.title("🚢 Tableau de Bord : Optimisation du Container Yard")
+st.title("Tableau de Bord : Optimisation du Container Yard")
 st.markdown("Interface utilisateur pour visualiser le parc en 3D et placer de nouveaux conteneurs via l'API.")
 
 # --- BARRE LATÉRALE ---
-st.sidebar.header("⚙️ Configuration du Yard")
+st.sidebar.header("Configuration du Yard")
 with st.sidebar.form("config_form"):
     blocks = st.number_input("Nombre de blocs", min_value=1, max_value=20, value=4)
     rows = st.number_input("Nombre de rangées par bloc", min_value=1, max_value=50, value=10)
@@ -51,7 +59,7 @@ if init_btn:
 
 st.sidebar.divider()
 
-st.sidebar.header("📦 Nouveau Conteneur")
+st.sidebar.header(" Nouveau Conteneur")
 with st.sidebar.form("placement_form"):
     c_size = st.selectbox("Taille (EVP)", options=[20, 40])
     c_weight = st.slider("Poids (Tonnes)", min_value=5.0, max_value=30.0, value=15.0, step=0.5)
@@ -99,10 +107,19 @@ if submit:
 st.divider()
 
 # --- VUE PRINCIPALE : État du Yard ---
-st.header("🗺️ État actuel du Yard")
+st.header("État actuel du Yard")
 
-if st.button("🔄 Rafraîchir les données"):
-    pass # Re-trigger du script
+if st.button(" Rafraîchir les données"):
+    with st.spinner("Réinitialisation du Yard..."):
+        try:
+            requests.post(
+                f"{API_URL}/yard/init", 
+                json={"blocks": 4, "rows": 10, "max_height": 4} # Valeurs par défaut ou on pourrait réutiliser les valeurs actuelles
+            )
+            st.session_state.last_placed = None
+        except Exception as e:
+            pass
+    st.rerun()
 
 try:
     response = requests.get(f"{API_URL}/yard")
@@ -130,7 +147,7 @@ try:
             fig = go.Figure()
 
             def add_cube_trace(fig, x_coords, y_coords, z_coords, color, name, hover_texts):
-                """Ajoute un groupe de conteneurs comme un seul Mesh3d pour la performance"""
+                """Ajoute un groupe de conteneurs comme un seul Mesh3d pour la performance."""
                 if not x_coords: return
                 
                 X, Y, Z, I, J, K = [], [], [], [], [], []
@@ -151,6 +168,11 @@ try:
                     J.extend([v + offset for v in j])
                     K.extend([v + offset for v in k])
                 
+                # Formatage du hovertext : Répéter chaque texte 8 fois (pour les 8 sommets de chaque cube)
+                formatted_hover_texts = []
+                for t in hover_texts:
+                    formatted_hover_texts.extend([t] * 8)
+
                 mesh = go.Mesh3d(
                     x=X, y=Y, z=Z,
                     i=I, j=J, k=K,
@@ -159,25 +181,35 @@ try:
                     flatshading=True,
                     name=name,
                     showscale=False,
-                    text=hover_texts, # Répéter le texte pour chaque point ne marche pas super bien avec Mesh3d au hover.
-                    hoverinfo='name'  # Simplification du hover pour Mesh3d
+                    text=formatted_hover_texts,
+                    hoverinfo='text' if hover_texts else 'name'
                 )
                 fig.add_trace(mesh)
 
             # Séparer les conteneurs normaux du "dernier placé" pour les colorer différemment
             last_placed = st.session_state.last_placed
             
-            x_norm, y_norm, z_norm = [], [], []
-            x_last, y_last, z_last = [], [], []
+            x_norm, y_norm, z_norm, text_norm = [], [], [], []
+            x_last, y_last, z_last, text_last = [], [], [], []
             
             for stack in block_data['stacks']:
-                # The API returns 'slots' list which contains 'container_id'
                 slots = stack.get('slots', [])
                 for s in slots:
                     if not s.get('is_free'):
                         tier_index = s['tier'] - 1 # 0-indexed for 3D coordinates
                         row_index = stack['row'] - 1 # 0-indexed
                         
+                        # Assembler le texte de survol
+                        hover_info = f"<b>{s.get('container_id', 'Inconnu')}</b><br>"
+                        details = s.get('container_details')
+                        if details:
+                            hover_info += f"Type: {details.get('type')}<br>"
+                            hover_info += f"Taille: {details.get('size')}ft<br>"
+                            hover_info += f"Poids: {details.get('weight')}t<br>"
+                            hover_info += f"Départ: {details.get('departure_time')}"
+                        else:
+                            hover_info += "<i>(Détails non disponibles)</i>"
+
                         is_last = False
                         if last_placed and last_placed['block'] == selected_block:
                             if last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']:
@@ -185,19 +217,21 @@ try:
                                 
                         if is_last:
                             x_last.append(row_index)
-                            y_last.append(0) # On n'affiche qu'un bloc à la fois, le Y est toujours 0
+                            y_last.append(0)
                             z_last.append(tier_index)
+                            text_last.append(hover_info)
                         else:
                             x_norm.append(row_index)
                             y_norm.append(0)
                             z_norm.append(tier_index)
+                            text_norm.append(hover_info)
 
             # Ajouter tous les conteneurs normaux
-            add_cube_trace(fig, x_norm, y_norm, z_norm, color='#2ca02c', name=f'Conteneurs', hover_texts=[])
+            add_cube_trace(fig, x_norm, y_norm, z_norm, color='#2ca02c', name=f'Conteneurs', hover_texts=text_norm)
             
             # Ajouter le dernier conteneur en évidence (Rouge)
             if x_last:
-                add_cube_trace(fig, x_last, y_last, z_last, color='#d62728', name='Nouveau Conteneur', hover_texts=[])
+                add_cube_trace(fig, x_last, y_last, z_last, color='#d62728', name='Nouveau Conteneur', hover_texts=text_last)
                 st.info(f"👉 Le dernier conteneur vient d'être posé en rouge (Bloc {last_placed['block']}, Rangée {last_placed['row']}, Hauteur {last_placed['tier']}).")
 
             # Dessiner le sol du bloc pour le repère visuel
@@ -232,5 +266,4 @@ try:
 except requests.exceptions.ConnectionError:
     st.warning("⚠️ L'API n'est pas accessible. Lancez `python main.py api` pour afficher les données du yard.")
 
-st.markdown("---")
-st.caption("Projet de Fin d'Études — Optimisation Yard 3D Marsa Maroc")
+

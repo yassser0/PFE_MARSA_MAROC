@@ -104,7 +104,7 @@ def simulate(
         total_rehandles += rehandles_pour_ce_slot
 
         # Phase 2: Exécuter le placement
-        success = yard.place_container(best_slot, container.id)
+        success = yard.place_container(best_slot, container)
         if success:
             placed_count += 1
         else:

@@ -34,6 +34,7 @@ class SlotInfo(BaseModel):
     tier: int
     is_free: bool
     container_id: Optional[str]
+    container_details: Optional[dict] = None  # NOUVEAU: Pour les infos au survol
 
 
 class StackInfo(BaseModel):
@@ -91,19 +92,33 @@ async def get_yard_state():
     from api.main import app as _app
 
     yard = _app.state.yard
+    registry = _app.state.container_registry
 
     blocks_info: List[BlockInfo] = []
     for block_id, block in yard.blocks.items():
         stacks_info: List[StackInfo] = []
         for row, stack in block.stacks.items():
-            slots_info = [
-                SlotInfo(
-                    tier=s.tier,
-                    is_free=s.is_free,
-                    container_id=s.container_id,
+            slots_info = []
+            for s in stack.slots:
+                details = None
+                if s.container_id and s.container_id in registry:
+                    c = registry[s.container_id]
+                    details = {
+                        "size": c.size,
+                        "weight": c.weight,
+                        "type": c.type.value,
+                        "departure_time": c.departure_time.strftime("%Y-%m-%d %H:%M")
+                    }
+                
+                slots_info.append(
+                    SlotInfo(
+                        tier=s.tier,
+                        is_free=s.is_free,
+                        container_id=s.container_id,
+                        container_details=details
+                    )
                 )
-                for s in stack.slots
-            ]
+            
             stacks_info.append(
                 StackInfo(
                     row=row,

@@ -180,6 +180,7 @@ class Yard:
     n_rows: int
     max_height: int
     blocks: Dict[str, Block] = field(default_factory=dict)
+    containers_registry: Dict[str, 'Container'] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Initialise les blocs si non fournis, nommés A, B, C, ..."""
@@ -229,7 +230,7 @@ class Yard:
     # Opérations sur les conteneurs
     # ------------------------------------------------------------------
 
-    def place_container(self, slot: Slot, container_id: str) -> bool:
+    def place_container(self, slot: Slot, container: 'Container') -> bool:
         """
         Place un conteneur dans un slot donné.
 
@@ -244,7 +245,9 @@ class Yard:
         target_slot = stack.slots[slot.tier - 1]  # tiers indexés à 1
         if not target_slot.is_free:
             return False
-        target_slot.container_id = container_id
+        
+        target_slot.container_id = container.id
+        self.containers_registry[container.id] = container
         return True
 
     def remove_container(self, slot: Slot) -> Optional[str]:
@@ -262,6 +265,10 @@ class Yard:
         target_slot = stack.slots[slot.tier - 1]
         container_id = target_slot.container_id
         target_slot.container_id = None
+        
+        if container_id and container_id in self.containers_registry:
+            del self.containers_registry[container_id]
+            
         return container_id
 
     def get_all_slots(self) -> List[Slot]:

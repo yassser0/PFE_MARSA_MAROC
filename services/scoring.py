@@ -57,10 +57,12 @@ def _estimate_rehandles(
     Estime le nombre de rehandles nécessaires pour récupérer le conteneur
     depuis le slot cible.
 
-    Logique :
-    - Un rehandle se produit quand un conteneur au-dessus du cible
-      doit être sorti en premier alors que son départ est POSTÉRIEUR
-      au conteneur cible (on doit le déplacer temporairement).
+    Logique (EDD) :
+    - Un rehandle se produit quand on place un nouveau conteneur (dont la 
+      date de départ est LATER) au-dessus d'un conteneur existant qui part
+      EARLIER. 
+    - Parce que le nouveau conteneur bloque l'accès au conteneur du bas 
+      lorsqu'il devra partir.
 
     Parameters
     ----------
@@ -72,25 +74,24 @@ def _estimate_rehandles(
 
     Returns
     -------
-    int : nombre estimé de rehandles (0 à max_height)
+    int : nombre estimé de rehandles
     """
     rehandles = 0
 
-    # Récupérer les conteneurs au-dessus du slot cible
-    containers_above_ids = stack.get_containers_above(target_tier)
+    # Récupérer les conteneurs EN DESSOUS du slot cible
+    for slot in stack.slots:
+        if slot.tier < target_tier and not slot.is_free and slot.container_id:
+            below_container = _find_container_in_yard(slot.container_id, yard)
+            if below_container is None:
+                # Conteneur non trouvé, on compte comme rehandle par précaution
+                rehandles += 1
+                continue
 
-    for above_id in containers_above_ids:
-        # Chercher le conteneur dans tous les slots du yard pour obtenir sa date
-        # (dans un vrai TOS, ce serait une requête DB directe)
-        above_container = _find_container_in_yard(above_id, yard)
-        if above_container is None:
-            # On ne peut pas évaluer → on compte comme rehandle par précaution
-            rehandles += 1
-            continue
-
-        # Si le conteneur au-dessus part APRÈS le conteneur cible → rehandle
-        if above_container.departure_time > container.departure_time:
-            rehandles += 1
+            # Si le conteneur cible part APRÈS le conteneur en dessous :
+            # -> Le conteneur cible bloquera le départ de celui d'en dessous
+            # -> rehandle supplémentaire !
+            if container.departure_time > below_container.departure_time:
+                rehandles += 1
 
     return rehandles
 
@@ -98,18 +99,9 @@ def _estimate_rehandles(
 def _find_container_in_yard(container_id: str, yard: Yard) -> Optional[Container]:
     """
     Recherche un conteneur dans le yard par son ID.
-
-    Note : Dans cette simulation, le yard ne stocke que les IDs.
-    Cette fonction est un placeholder — en production, on interrogerait
-    directement le TOS ou une base de données.
-
-    Pour cette version, retourne None (pas de lookup complet nécessaire
-    pour la heuristique simplifiée).
+    Utilise le nouveau registre de la classe Yard.
     """
-    # Dans la simulation, nous n'avons pas accès aux objets Container
-    # depuis le yard (qui stocke uniquement les IDs).
-    # Le scoring utilise une approximation basée sur la position.
-    return None
+    return yard.containers_registry.get(container_id)
 
 
 # ---------------------------------------------------------------------------
