@@ -230,8 +230,27 @@ def generate_yard(
     if blocks > 26:
         raise ValueError("Maximum 26 blocs supportés (A–Z).")
 
-    return Yard(
+    yard = Yard(
         n_blocks=blocks,
         n_rows=rows,
         max_height=max_height,
     )
+    
+    # Configuration spatiale réaliste (Layout inspiré de TC3 Casablanca)
+    block_width = 15.0     # Largeur d'un bloc (mètres)
+    block_length = rows * 1.1 # Longueur basée sur le nombre de conteneurs (~1.1m par slot)
+    spacing_x = 25.0       # Espace horizontal entre colonnes (voies de circulation)
+    spacing_y = 10.0       # Espace vertical entre blocs
+    
+    for i, (block_id, block) in enumerate(yard.blocks.items()):
+        # Layout en 2 colonnes principales
+        col = i % 2
+        row_in_col = i // 2
+        
+        block.x = col * spacing_x
+        block.y = row_in_col * (block_length + spacing_y)
+        block.width = block_width
+        block.length = block_length
+        block.rotation = 0.0
+        
+    return yard

@@ -149,6 +149,13 @@ class Block:
     n_rows: int
     max_height: int
     stacks: Dict[int, Stack] = field(default_factory=dict)
+    
+    # Propriétés spatiales (pour le layout dynamique)
+    x: float = 0.0          # Position X dans le terminal (mètres)
+    y: float = 0.0          # Position Y dans le terminal (mètres)
+    width: float = 20.0     # Largeur du bloc (mètres)
+    length: float = 50.0    # Longueur du bloc (mètres)
+    rotation: float = 0.0   # Rotation en degrés
 
     def __post_init__(self) -> None:
         """Initialise les stacks si non fournis."""

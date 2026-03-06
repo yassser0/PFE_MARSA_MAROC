@@ -52,6 +52,12 @@ class BlockInfo(BaseModel):
     n_rows: int
     occupancy: float
     stacks: List[StackInfo]
+    # NOUVEAU: Propriétés spatiales
+    x: float
+    y: float
+    width: float
+    length: float
+    rotation: float
 
 
 class YardStateResponse(BaseModel):
@@ -134,6 +140,11 @@ async def get_yard_state():
                 n_rows=block.n_rows,
                 occupancy=round(block.occupancy, 4),
                 stacks=stacks_info,
+                x=block.x,
+                y=block.y,
+                width=block.width,
+                length=block.length,
+                rotation=block.rotation
             )
         )
 

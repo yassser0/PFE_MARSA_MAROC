@@ -147,164 +147,151 @@ if submit:
 
 st.divider()
 
-# --- VUE PRINCIPALE : État du Yard ---
-st.header("État actuel du Yard")
-
-if st.button(" Rafraîchir les données"):
-    with st.spinner("Réinitialisation du Yard..."):
-        try:
-            requests.post(
-                f"{API_URL}/yard/init", 
-                json={"blocks": 4, "rows": 10, "max_height": 4} # Valeurs par défaut ou on pourrait réutiliser les valeurs actuelles
-            )
-            st.session_state.last_placed = None
-        except Exception as e:
-            pass
-    st.rerun()
+# --- VUE PRINCIPALE ---
+tabs = st.tabs(["🏗️ Vue Globale 3D", "🔍 Vue Détail Bloc", "📊 Statistiques"])
 
 try:
     response = requests.get(f"{API_URL}/yard")
     if response.status_code == 200:
         yard_data = response.json()
         
-        # --- KPIs Globaux ---
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        kpi1.metric("Capacité Totale", f"{yard_data['total_capacity']} slots")
-        kpi2.metric("Slots Occupés", yard_data['used_slots'])
-        kpi3.metric("Taux d'Occupation", f"{yard_data['occupancy_rate'] * 100:.1f} %")
-        kpi4.metric("Hauteur Moyenne", f"{yard_data['average_stack_height']:.2f}")
+        # Helper pour ajouter des cubes
+        def add_cube_trace(fig, x_coords, y_coords, z_coords, color, name, hover_texts, offset=(0,0)):
+            if not x_coords: return
+            X, Y, Z, I, J, K = [], [], [], [], [], []
+            dx, dy, dz = 0.8, 0.8, 0.9 
+            ox, oy = offset
+            for idx, (x, y, z) in enumerate(zip(x_coords, y_coords, z_coords)):
+                ax, ay = x + ox, y + oy # Apply spatial offset
+                offset_idx = idx * 8
+                X.extend([ax, ax+dx, ax+dx, ax, ax, ax+dx, ax+dx, ax])
+                Y.extend([ay, ay, ay+dy, ay+dy, ay, ay, ay+dy, ay+dy])
+                Z.extend([z, z, z, z, z+dz, z+dz, z+dz, z+dz])
+                i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
+                j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
+                k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
+                I.extend([v + offset_idx for v in i]); J.extend([v + offset_idx for v in j]); K.extend([v + offset_idx for v in k])
+            
+            formatted_hover_texts = []
+            for t in hover_texts: formatted_hover_texts.extend([t] * 8)
+            mesh = go.Mesh3d(
+                x=X, y=Y, z=Z, i=I, j=J, k=K, color=color, opacity=0.9,
+                flatshading=True, name=name, showscale=False,
+                text=formatted_hover_texts, hoverinfo='text' if hover_texts else 'name'
+            )
+            fig.add_trace(mesh)
 
-        # --- Visualisation 3D avec Plotly ---
-        st.subheader("Visualisation des Blocs")
-        
-        # Filtre par bloc
-        blocks = [b['block_id'] for b in yard_data['blocks']]
-        selected_block = st.selectbox("Sélectionner un Bloc à visualiser :", blocks)
-        
-        # Trouver les données du bloc sélectionné
-        block_data = next((b for b in yard_data['blocks'] if b['block_id'] == selected_block), None)
-        
-        if block_data:
-            fig = go.Figure()
-
-            def add_cube_trace(fig, x_coords, y_coords, z_coords, color, name, hover_texts):
-                """Ajoute un groupe de conteneurs comme un seul Mesh3d pour la performance."""
-                if not x_coords: return
-                
-                X, Y, Z, I, J, K = [], [], [], [], [], []
-                # Ajuster la taille des cubes pour laisser un petit espace entre eux
-                dx, dy, dz = 0.8, 0.8, 0.9 
-                
-                for idx, (x, y, z) in enumerate(zip(x_coords, y_coords, z_coords)):
-                    offset = idx * 8
-                    X.extend([x, x+dx, x+dx, x, x, x+dx, x+dx, x])
-                    Y.extend([y, y, y+dy, y+dy, y, y, y+dy, y+dy])
-                    Z.extend([z, z, z, z, z+dz, z+dz, z+dz, z+dz])
-                    
-                    i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
-                    j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
-                    k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
-                    
-                    I.extend([v + offset for v in i])
-                    J.extend([v + offset for v in j])
-                    K.extend([v + offset for v in k])
-                
-                # Formatage du hovertext : Répéter chaque texte 8 fois (pour les 8 sommets de chaque cube)
-                formatted_hover_texts = []
-                for t in hover_texts:
-                    formatted_hover_texts.extend([t] * 8)
-
-                mesh = go.Mesh3d(
-                    x=X, y=Y, z=Z,
-                    i=I, j=J, k=K,
-                    color=color,
-                    opacity=0.9,
-                    flatshading=True,
-                    name=name,
-                    showscale=False,
-                    text=formatted_hover_texts,
-                    hoverinfo='text' if hover_texts else 'name'
-                )
-                fig.add_trace(mesh)
-
-            # Séparer les conteneurs normaux du "dernier placé" pour les colorer différemment
+        # --- TAB 1 : VUE GLOBALE 3D ---
+        with tabs[0]:
+            st.subheader("Terminal à Conteneurs - Vue 3D Réaliste (TC3)")
+            st.caption("Visualisation de l'ensemble du parc selon la disposition réelle.")
+            
+            fig_global = go.Figure()
             last_placed = st.session_state.last_placed
             
-            x_norm, y_norm, z_norm, text_norm = [], [], [], []
-            x_last, y_last, z_last, text_last = [], [], [], []
-            
-            for stack in block_data['stacks']:
-                slots = stack.get('slots', [])
-                for s in slots:
-                    if not s.get('is_free'):
-                        tier_index = s['tier'] - 1 # 0-indexed for 3D coordinates
-                        row_index = stack['row'] - 1 # 0-indexed
-                        
-                        # Assembler le texte de survol
-                        hover_info = f"<b>{s.get('container_id', 'Inconnu')}</b><br>"
-                        details = s.get('container_details')
-                        if details:
-                            hover_info += f"Type: {details.get('type')}<br>"
-                            hover_info += f"Taille: {details.get('size')}ft<br>"
-                            hover_info += f"Poids: {details.get('weight')}t<br>"
-                            hover_info += f"Départ: {details.get('departure_time')}"
-                        else:
-                            hover_info += "<i>(Détails non disponibles)</i>"
-
-                        is_last = False
-                        if last_placed and last_placed['block'] == selected_block:
-                            if last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']:
-                                is_last = True
-                                
-                        if is_last:
-                            x_last.append(row_index)
-                            y_last.append(0)
-                            z_last.append(tier_index)
-                            text_last.append(hover_info)
-                        else:
-                            x_norm.append(row_index)
-                            y_norm.append(0)
-                            z_norm.append(tier_index)
-                            text_norm.append(hover_info)
-
-            # Ajouter tous les conteneurs normaux
-            add_cube_trace(fig, x_norm, y_norm, z_norm, color='#2ca02c', name=f'Conteneurs', hover_texts=text_norm)
-            
-            # Ajouter le dernier conteneur en évidence (Rouge)
-            if x_last:
-                add_cube_trace(fig, x_last, y_last, z_last, color='#d62728', name='Nouveau Conteneur', hover_texts=text_last)
-                st.info(f"👉 Le dernier conteneur vient d'être posé en rouge (Bloc {last_placed['block']}, Rangée {last_placed['row']}, Hauteur {last_placed['tier']}).")
-
-            # Dessiner le sol du bloc pour le repère visuel
-            max_r = yard_data['n_rows']
-            fig.add_trace(go.Mesh3d(
-                x=[-0.5, max_r-0.5, max_r-0.5, -0.5],
-                y=[-0.5, -0.5, 1.5, 1.5],
-                z=[0, 0, 0, 0],   
-                i=[0, 0], j=[1, 2], k=[2, 3],
-                color='gray', opacity=0.3, name='Sol', hoverinfo='skip'
-            ))
-
-            fig.update_layout(
-                scene=dict(
-                    xaxis=dict(title='Rangée', range=[-1, yard_data['n_rows']], dtick=1),
-                    yaxis=dict(title='', range=[-1, 2], showticklabels=False), # Cacher l'axe Y (un seul bloc)
-                    zaxis=dict(title='Niveau', range=[0, yard_data['max_height'] + 1], dtick=1),
-                    aspectmode='manual',
-                    aspectratio=dict(x=2, y=0.5, z=1) # Allonger selon les rangées
-                ),
-                title=f"Vue 3D - Bloc {selected_block}",
-                margin=dict(l=0, r=0, b=0, t=40)
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # --- Liste détaillée des blocs ---
-        with st.expander("Voir les détails chiffrés par bloc"):
             for block in yard_data['blocks']:
-                st.markdown(f"**Bloc {block['block_id']}** — Occupation : {block['occupancy']*100:.1f}%")
+                # Coordonnées du bloc
+                bx, by = block['x'], block['y']
+                
+                # Dessiner le sol du bloc
+                bw, bl = block['width'], block['length']
+                fig_global.add_trace(go.Mesh3d(
+                    x=[bx, bx+bw, bx+bw, bx], y=[by, by, by+bl, by+bl], z=[0, 0, 0, 0],   
+                    i=[0, 0], j=[1, 2], k=[2, 3], color='gray', opacity=0.1, hoverinfo='skip'
+                ))
+                
+                # Ajouter l'ID du bloc
+                fig_global.add_trace(go.Scatter3d(
+                    x=[bx+bw/2], y=[by+bl/2], z=[yard_data['max_height'] + 1],
+                    mode='text', text=[f"Bloc {block['block_id']}"],
+                    textfont=dict(color="white", size=10), showlegend=False
+                ))
+
+                x_norm, y_norm, z_norm, text_norm = [], [], [], []
+                x_last, y_last, z_last, text_last = [], [], [], []
+                
+                for stack in block['stacks']:
+                    for s in stack.get('slots', []):
+                        if not s.get('is_free'):
+                            tier_idx = s['tier'] - 1
+                            # Dans le bloc, x=row, y=0 (on pourrait améliorer le positionnement interne)
+                            # On distribue les rangées le long de la "length" du bloc
+                            row_y_offset = (stack['row'] - 1) * 1.1
+                            
+                            details = s.get('container_details')
+                            hover = f"<b>{s['container_id']}</b><br>Bloc {block['block_id']}, R{stack['row']}, T{s['tier']}"
+                            if details:
+                                hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
+                            
+                            is_recent = last_placed and last_placed['block'] == block['block_id'] and last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']
+                            
+                            if is_recent:
+                                x_last.append(0); y_last.append(row_y_offset); z_last.append(tier_idx); text_last.append(hover)
+                            else:
+                                x_norm.append(0); y_norm.append(row_y_offset); z_norm.append(tier_idx); text_norm.append(hover)
+                
+                add_cube_trace(fig_global, x_norm, y_norm, z_norm, color='#2ca02c', name=f'B-{block["block_id"]}', hover_texts=text_norm, offset=(bx, by))
+                if x_last:
+                    add_cube_trace(fig_global, x_last, y_last, z_last, color='#d62728', name='Nouveau', hover_texts=text_last, offset=(bx, by))
+
+            fig_global.update_layout(
+                scene=dict(
+                    xaxis=dict(title="X (m)", backgroundcolor="rgb(20, 20, 20)"),
+                    yaxis=dict(title="Y (m)", backgroundcolor="rgb(20, 20, 20)"),
+                    zaxis=dict(title="Niveau", range=[0, yard_data['max_height'] + 2]),
+                    aspectmode='data'
+                ),
+                margin=dict(l=0, r=0, b=0, t=0), height=700,
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_global, use_container_width=True)
+
+        # --- TAB 2 : VUE DÉTAIL BLOC ---
+        with tabs[1]:
+            st.subheader("Détails d'un Bloc")
+            blocks_ids = [b['block_id'] for b in yard_data['blocks']]
+            sel_block_id = st.selectbox("Choisir le bloc à inspecter :", blocks_ids)
+            
+            block_data = next((b for b in yard_data['blocks'] if b['block_id'] == sel_block_id), None)
+            if block_data:
+                fig_detail = go.Figure()
+                x_d, y_d, z_d, t_d = [], [], [], []
+                for stack in block_data['stacks']:
+                    for s in stack['slots']:
+                        if not s['is_free']:
+                            x_d.append(stack['row']-1); y_d.append(0); z_d.append(s['tier']-1)
+                            details = s.get('container_details')
+                            hover = f"<b>{s['container_id']}</b><br>Bloc {sel_block_id}, R{stack['row']}, T{s['tier']}"
+                            if details:
+                                hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
+                            t_d.append(hover)
+                
+                add_cube_trace(fig_detail, x_d, y_d, z_d, color='#2ca02c', name='Stack', hover_texts=t_d)
+                
+                max_r = block_data['n_rows']
+                fig_detail.update_layout(
+                    scene=dict(
+                        xaxis=dict(title='Rangée', range=[-1, max_r]),
+                        yaxis=dict(title='', range=[-1, 1], showticklabels=False),
+                        zaxis=dict(title='Niveau', range=[0, yard_data['max_height'] + 1]),
+                        aspectmode='manual', aspectratio=dict(x=2, y=0.5, z=1)
+                    ),
+                    margin=dict(l=0, r=0, b=0, t=0), height=500
+                )
+                st.plotly_chart(fig_detail, use_container_width=True)
+
+        # --- TAB 3 : ANALYTICS ---
+        with tabs[2]:
+            st.subheader("Performance du Yard")
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Occupation Globale", f"{yard_data['occupancy_rate']*100:.1f}%")
+            k2.metric("Slots Occupés", yard_data['used_slots'])
+            k3.metric("Hauteur Moyenne", f"{yard_data['average_stack_height']:.2f}")
+            
+            occ_df = pd.DataFrame([{"Bloc": b['block_id'], "Occupation": b['occupancy']*100} for b in yard_data['blocks']])
+            st.plotly_chart(px.bar(occ_df, x="Bloc", y="Occupation", color="Occupation", color_continuous_scale="RdYlGn_r"))
 
 except requests.exceptions.ConnectionError:
-    st.warning("⚠️ L'API n'est pas accessible. Lancez `python main.py api` pour afficher les données du yard.")
+    st.warning("🚨 API non accessible. Veuillez lancer `python main.py api`.")
 
 
