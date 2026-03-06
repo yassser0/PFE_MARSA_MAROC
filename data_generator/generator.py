@@ -236,11 +236,11 @@ def generate_yard(
         max_height=max_height,
     )
     
-    # Configuration spatiale réaliste (Layout inspiré de TC3 Casablanca)
-    block_width = 15.0     # Largeur d'un bloc (mètres)
+    # Configuration spatiale réajustée (Proportions visuelles optimisées)
+    block_width = 3.0      # Largeur d'un bloc (pour contenir 1 pile + un peu de marge)
     block_length = rows * 1.1 # Longueur basée sur le nombre de conteneurs (~1.1m par slot)
-    spacing_x = 25.0       # Espace horizontal entre colonnes (voies de circulation)
-    spacing_y = 10.0       # Espace vertical entre blocs
+    spacing_x = 8.0        # Espace horizontal entre colonnes
+    spacing_y = 5.0        # Espace vertical entre blocs
     
     for i, (block_id, block) in enumerate(yard.blocks.items()):
         # Layout en 2 colonnes principales

@@ -10,7 +10,7 @@ ENDPOINT = f"{API_URL}/containers/place"
 
 # Configuration du simulateur
 INTERVAL_SECONDS = 2  # Temps entre chaque arrivée de camion (en secondes)
-TOTAL_CONTAINERS = 50 # Nombre total de conteneurs à envoyer
+TOTAL_CONTAINERS = 160 # Nombre total de conteneurs à envoyer
 DELAY_DAYS_MIN = 1      # Jours min avant départ
 DELAY_DAYS_MAX = 30     # Jours max avant départ
 
