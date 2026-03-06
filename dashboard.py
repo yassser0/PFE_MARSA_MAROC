@@ -30,9 +30,111 @@ if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Vue Globale 3D"
 if 'selected_block' not in st.session_state:
     st.session_state.selected_block = "A"
-    
-st.title("🏗️ Tableau de Bord - Optimisation du Yard")
 
+# --- CUSTOM CSS ---
+st.markdown("""
+<style>
+    /* Global Theme Overrides */
+    .stApp {
+        background-color: #0E1117;
+    }
+    
+    /* KPI Cards - Glassmorphism */
+    .kpi-card {
+        background: rgba(30, 35, 45, 0.7);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        margin-bottom: 20px;
+        transition: transform 0.2s;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        border: 1px solid rgba(44, 160, 44, 0.5); /* Highlight on hover */
+    }
+    .kpi-title {
+        color: #8B949E;
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+    }
+    .kpi-value {
+        color: #FFFFFF;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .kpi-delta {
+        font-size: 0.85rem;
+        margin-top: 5px;
+    }
+    .delta-up { color: #2ca02c; }
+    .delta-down { color: #d62728; }
+    
+    /* Styling for the Placement Result Box */
+    .placement-success {
+        background: rgba(44, 160, 44, 0.1);
+        border-left: 4px solid #2ca02c;
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 10px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🚢 Marsa Maroc - Yard Intelligence")
+st.markdown("<p style='color: #8B949E; font-size: 1.1rem; margin-bottom: 30px;'>Système d'Optimisation et de Visualisation 3D du Terminal à Conteneurs</p>", unsafe_allow_html=True)
+
+# --- FETCH GLOBAL DATA EARLY FOR HEADER KPIS ---
+yard_data = None
+try:
+    resp = requests.get(f"{API_URL}/yard")
+    if resp.status_code == 200:
+        yard_data = resp.json()
+except requests.exceptions.ConnectionError:
+    st.error("🚨 API non accessible. Veuillez lancer `python main.py api`.")
+
+# --- GLOBAL KPI HEADER ---
+if yard_data:
+    kpi_cols = st.columns(4)
+    
+    with kpi_cols[0]:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-title">Occupation Globale</div>
+            <div class="kpi-value">{yard_data['occupancy_rate']*100:.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with kpi_cols[1]:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-title">Slots Occupés</div>
+            <div class="kpi-value">{yard_data['used_slots']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with kpi_cols[2]:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-title">Capacité Totale</div>
+            <div class="kpi-value">{yard_data['total_capacity']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with kpi_cols[3]:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-title">Hauteur Moyenne</div>
+            <div class="kpi-value">{yard_data['average_stack_height']:.1f}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # --- BARRE LATÉRALE ---
@@ -57,10 +159,14 @@ if init_btn:
                 st.sidebar.success(f"✅ {data['message']} (Capacité : {data['total_capacity']})")
                 # Réinitialiser le dernier conteneur placé puisqu'on a un nouveau yard
                 st.session_state.last_placed = None
+                st.rerun() # Rafraîchissement automatique après initialisation
             else:
                 st.sidebar.error(f"Erreur : {response.json().get('detail', 'Inconnue')}")
         except requests.exceptions.ConnectionError:
             st.sidebar.error("🚨 Impossible de se connecter à l'API.")
+
+if st.sidebar.button("🔄 Actualiser les données", use_container_width=True):
+    st.rerun()
 
 st.sidebar.divider()
 
@@ -132,45 +238,32 @@ if submit:
             if response.status_code == 200:
                 data = response.json()
                 st.session_state.last_placed = data['best_slot']
-                st.success(f"✅ Conteneur {data['container_id']} placé avec succès dans le Bloc {data['best_slot']['block']}, Rangée {data['best_slot']['row']}, Hauteur {data['best_slot']['tier']} !")
+                st.markdown(f"""
+                <div class="placement-success">
+                    <h4 style="margin: 0; color: #2ca02c;">✅ Conteneur {data['container_id']} placé avec succès !</h4>
+                    <p style="margin: 5px 0 0 0;">Bloc <b>{data['best_slot']['block']}</b> | Rangée <b>{data['best_slot']['row']}</b> | Niveau <b>{data['best_slot']['tier']}</b></p>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Afficher les détails du placement
+                st.write("") # espacement
                 col1, col2, col3 = st.columns(3)
-                col1.metric("Emplacement Optimal", data['best_slot']['position_key'])
+                col1.metric("Clé Position", data['best_slot']['position_key'])
                 col2.metric("Score Global", round(data['best_score'], 2))
                 
                 bd = data['score_breakdown']
                 col3.metric("Rehandles Estimés", int(bd['rehandle_score'] / 3.0))
                 
-                with st.expander("Voir le détail du score"):
+                with st.expander("📊 Détail Calcul Algorithmique"):
                     st.json(bd)
             else:
                 st.error(f"Erreur : {response.json().get('detail', 'Inconnue')}")
         except requests.exceptions.ConnectionError:
             st.error("🚨 Impossible de se connecter à l'API. Assurez-vous que `python main.py api` tourne en arrière-plan.")
 
-st.divider()
+st.markdown("---")
 
-# --- NAVIGATION ---
-# Comme st.tabs ne permet pas la navigation programmatique, nous utilisons un menu personnalisé
-tabs_list = ["Vue Globale 3D", "Vue Détail Bloc", "Statistiques"]
-active_idx = tabs_list.index(st.session_state.active_tab)
-
-# Utilisation de colonnes pour simuler des onglets cliquables
-col_nav, _ = st.columns([3, 1])
-with col_nav:
-    st.session_state.active_tab = st.radio(
-        "Navigation", 
-        tabs_list, 
-        index=active_idx, 
-        horizontal=True, 
-        label_visibility="collapsed"
-    )
-
-try:
-    response = requests.get(f"{API_URL}/yard")
-    if response.status_code == 200:
-        yard_data = response.json()
+if yard_data:
         
         # Helper pour ajouter des cubes
         def add_cube_trace(fig, x_coords, y_coords, z_coords, color, name, hover_texts, offset=(0,0)):
@@ -198,10 +291,35 @@ try:
             )
             fig.add_trace(mesh)
 
+        # --- NAVIGATION ---
+        # Comme st.tabs ne permet pas la navigation programmatique, nous utilisons un menu personnalisé
+        tabs_list = ["Vue Globale 3D", "Vue Détail Bloc", "Heatmap & Analytique"]
+        active_idx = tabs_list.index(st.session_state.active_tab) if st.session_state.active_tab in tabs_list else 0
+
+        # Utilisation de colonnes pour simuler des onglets horizontaux propres
+        st.session_state.active_tab = st.radio(
+            "Vue Principale", 
+            tabs_list, 
+            index=active_idx, 
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+        st.write("") # Petit espacement
+
         if st.session_state.active_tab == "Vue Globale 3D":
-            st.subheader("Terminal à Conteneurs - Vue 3D Réaliste (TC3)")
-            st.caption("Visualisation de l'ensemble du parc selon la disposition réelle.")
+            st.markdown("### 🗺️ Carte Globale Interactive")
+            st.caption("Visualisation du TC3 (Terminal à Conteneurs 3). Survolez les conteneurs pour les détails.")
             
+            # Déplacement de la Navigation Rapide au-dessus de la carte pour une meilleure accessibilité UX
+            st.markdown("##### 📌 Accélération vers un secteur")
+            cols = st.columns(len(yard_data['blocks']))
+            for i, block in enumerate(yard_data['blocks']):
+                with cols[i]:
+                    if st.button(f"🔍 Inspecter {block['block_id']}", use_container_width=True, key=f"nav_btn_{block['block_id']}"):
+                        st.session_state.selected_block = block['block_id']
+                        st.session_state.active_tab = "Vue Détail Bloc"
+                        st.rerun()
+
             fig_global = go.Figure()
             last_placed = st.session_state.last_placed
             
@@ -254,26 +372,18 @@ try:
                     add_cube_trace(fig_global, x_last, y_last, z_last, color='#d62728', name='Nouveau', hover_texts=text_last, offset=(bx, by))
 
             fig_global.update_layout(
-                clickmode='event+select', # CRITIQUE : Active l'événement de sélection au clic
+                clickmode='event+select',
                 scene=dict(
-                    xaxis=dict(title="X (m)", backgroundcolor="rgb(20, 20, 20)"),
-                    yaxis=dict(title="Y (m)", backgroundcolor="rgb(20, 20, 20)"),
-                    zaxis=dict(title="Niveau", range=[0, yard_data['max_height'] + 2]),
+                    xaxis=dict(title="Axe X (Longitudinal)", backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
+                    yaxis=dict(title="Axe Y (Transversal)", backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
+                    zaxis=dict(title="Élévation", range=[0, yard_data['max_height'] + 2], backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
                     aspectmode='data'
                 ),
                 margin=dict(l=0, r=0, b=0, t=0), height=700,
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                modebar=dict(bgcolor='rgba(0,0,0,0.5)', color='white')
             )
-            # Déplacement de la Navigation Rapide au-dessus de la carte
-            st.markdown("### Navigation Rapide vers un Bloc")
-            cols = st.columns(len(yard_data['blocks']))
-            for i, block in enumerate(yard_data['blocks']):
-                with cols[i]:
-                    if st.button(f"🔍 Voir Bloc {block['block_id']}", use_container_width=True, key=f"nav_btn_{block['block_id']}"):
-                        st.session_state.selected_block = block['block_id']
-                        st.session_state.active_tab = "Vue Détail Bloc"
-                        st.rerun()
-
+            
             # Rendu avec capture d'événements
             event = st.plotly_chart(fig_global, use_container_width=True, on_select="rerun", key="global_map")
             
@@ -333,17 +443,12 @@ try:
                 st.plotly_chart(fig_detail, use_container_width=True)
 
         # --- TAB 3 : ANALYTICS ---
-        elif st.session_state.active_tab == "Statistiques":
-            st.subheader("Performance du Yard")
-            k1, k2, k3 = st.columns(3)
-            k1.metric("Occupation Globale", f"{yard_data['occupancy_rate']*100:.1f}%")
-            k2.metric("Slots Occupés", yard_data['used_slots'])
-            k3.metric("Hauteur Moyenne", f"{yard_data['average_stack_height']:.2f}")
+        elif st.session_state.active_tab == "Heatmap & Analytique":
+            st.markdown("### 📊 Distribution de la Charge")
             
-            occ_df = pd.DataFrame([{"Bloc": b['block_id'], "Occupation": b['occupancy']*100} for b in yard_data['blocks']])
-            st.plotly_chart(px.bar(occ_df, x="Bloc", y="Occupation", color="Occupation", color_continuous_scale="RdYlGn_r"))
-
-except requests.exceptions.ConnectionError:
-    st.warning("🚨 API non accessible. Veuillez lancer `python main.py api`.")
+            occ_df = pd.DataFrame([{"Secteur": f"Bloc {b['block_id']}", "Taux d'Occupation (%)": b['occupancy']*100} for b in yard_data['blocks']])
+            fig_bar = px.bar(occ_df, x="Secteur", y="Taux d'Occupation (%)", color="Taux d'Occupation (%)", color_continuous_scale="RdYlGn_r", template="plotly_dark")
+            fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0.2)', margin=dict(t=30, b=0, l=0, r=0))
+            st.plotly_chart(fig_bar, use_container_width=True)
 
 
