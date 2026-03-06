@@ -23,9 +23,13 @@ if live_mode:
 # Constantes API
 API_URL = "http://127.0.0.1:8000"
 
-# Initialiser la variable d'état pour le dernier conteneur placé
+# Initialiser les variables d'état pour la navigation
 if 'last_placed' not in st.session_state:
     st.session_state.last_placed = None
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = "Vue Globale 3D"
+if 'selected_block' not in st.session_state:
+    st.session_state.selected_block = "A"
     
 st.title("🏗️ Tableau de Bord - Optimisation du Yard")
 
@@ -147,8 +151,21 @@ if submit:
 
 st.divider()
 
-# --- VUE PRINCIPALE ---
-tabs = st.tabs(["🏗️ Vue Globale 3D", "🔍 Vue Détail Bloc", "📊 Statistiques"])
+# --- NAVIGATION ---
+# Comme st.tabs ne permet pas la navigation programmatique, nous utilisons un menu personnalisé
+tabs_list = ["Vue Globale 3D", "Vue Détail Bloc", "Statistiques"]
+active_idx = tabs_list.index(st.session_state.active_tab)
+
+# Utilisation de colonnes pour simuler des onglets cliquables
+col_nav, _ = st.columns([3, 1])
+with col_nav:
+    st.session_state.active_tab = st.radio(
+        "Navigation", 
+        tabs_list, 
+        index=active_idx, 
+        horizontal=True, 
+        label_visibility="collapsed"
+    )
 
 try:
     response = requests.get(f"{API_URL}/yard")
@@ -181,8 +198,7 @@ try:
             )
             fig.add_trace(mesh)
 
-        # --- TAB 1 : VUE GLOBALE 3D ---
-        with tabs[0]:
+        if st.session_state.active_tab == "Vue Globale 3D":
             st.subheader("Terminal à Conteneurs - Vue 3D Réaliste (TC3)")
             st.caption("Visualisation de l'ensemble du parc selon la disposition réelle.")
             
@@ -195,10 +211,15 @@ try:
                 
                 # Dessiner le sol du bloc
                 bw, bl = block['width'], block['length']
+                # Sol du bloc (Mesh3d)
                 fig_global.add_trace(go.Mesh3d(
-                    x=[bx, bx+bw, bx+bw, bx], y=[by, by, by+bl, by+bl], z=[0, 0, 0, 0],   
-                    i=[0, 0], j=[1, 2], k=[2, 3], color='gray', opacity=0.1, hoverinfo='skip'
+                    x=[bx, bx+bw, bx+bw, bx], y=[by, by, by+bl, by+bl], z=[0.01, 0.01, 0.01, 0.01],   
+                    i=[0, 0], j=[1, 2], k=[2, 3], color='gray', opacity=0.1, 
+                    hoverinfo='skip',
+                    name=f"Sol {block['block_id']}"
                 ))
+
+                # Le sol du bloc est cliquable (via le clickmode, même si moins fiable)
                 
                 # Ajouter l'ID du bloc
                 fig_global.add_trace(go.Scatter3d(
@@ -214,8 +235,6 @@ try:
                     for s in stack.get('slots', []):
                         if not s.get('is_free'):
                             tier_idx = s['tier'] - 1
-                            # Dans le bloc, x=row, y=0 (on pourrait améliorer le positionnement interne)
-                            # On distribue les rangées le long de la "length" du bloc
                             row_y_offset = (stack['row'] - 1) * 1.1
                             
                             details = s.get('container_details')
@@ -235,6 +254,7 @@ try:
                     add_cube_trace(fig_global, x_last, y_last, z_last, color='#d62728', name='Nouveau', hover_texts=text_last, offset=(bx, by))
 
             fig_global.update_layout(
+                clickmode='event+select', # CRITIQUE : Active l'événement de sélection au clic
                 scene=dict(
                     xaxis=dict(title="X (m)", backgroundcolor="rgb(20, 20, 20)"),
                     yaxis=dict(title="Y (m)", backgroundcolor="rgb(20, 20, 20)"),
@@ -244,15 +264,47 @@ try:
                 margin=dict(l=0, r=0, b=0, t=0), height=700,
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
             )
-            st.plotly_chart(fig_global, use_container_width=True)
+            # Déplacement de la Navigation Rapide au-dessus de la carte
+            st.markdown("### Navigation Rapide vers un Bloc")
+            cols = st.columns(len(yard_data['blocks']))
+            for i, block in enumerate(yard_data['blocks']):
+                with cols[i]:
+                    if st.button(f"🔍 Voir Bloc {block['block_id']}", use_container_width=True, key=f"nav_btn_{block['block_id']}"):
+                        st.session_state.selected_block = block['block_id']
+                        st.session_state.active_tab = "Vue Détail Bloc"
+                        st.rerun()
+
+            # Rendu avec capture d'événements
+            event = st.plotly_chart(fig_global, use_container_width=True, on_select="rerun", key="global_map")
+            
+            # Gestion de la redirection au clic
+            if event and "selection" in event and event["selection"]["points"]:
+                point = event["selection"]["points"][0]
+                
+                # Récupération sécurisée du customdata (qui peut être une liste ou une valeur simple)
+                cd = point.get("customdata")
+                clicked_block = None
+                
+                if isinstance(cd, list) and len(cd) > 0:
+                    clicked_block = cd[0]
+                elif isinstance(cd, str):
+                    clicked_block = cd
+                
+                if clicked_block and str(clicked_block) in [b['block_id'] for b in yard_data['blocks']]:
+                    st.session_state.selected_block = str(clicked_block)
+                    st.session_state.active_tab = "Vue Détail Bloc"
+                    st.rerun()
 
         # --- TAB 2 : VUE DÉTAIL BLOC ---
-        with tabs[1]:
+        elif st.session_state.active_tab == "Vue Détail Bloc":
             st.subheader("Détails d'un Bloc")
             blocks_ids = [b['block_id'] for b in yard_data['blocks']]
-            sel_block_id = st.selectbox("Choisir le bloc à inspecter :", blocks_ids)
             
-            block_data = next((b for b in yard_data['blocks'] if b['block_id'] == sel_block_id), None)
+            # Synchroniser le selectbox avec l'état de la session
+            default_idx = blocks_ids.index(st.session_state.selected_block) if st.session_state.selected_block in blocks_ids else 0
+            st.session_state.selected_block = st.selectbox("Choisir le bloc à inspecter :", blocks_ids, index=default_idx)
+            
+            block_data = next((b for b in yard_data['blocks'] if b['block_id'] == st.session_state.selected_block), None)
             if block_data:
                 fig_detail = go.Figure()
                 x_d, y_d, z_d, t_d = [], [], [], []
@@ -261,7 +313,7 @@ try:
                         if not s['is_free']:
                             x_d.append(stack['row']-1); y_d.append(0); z_d.append(s['tier']-1)
                             details = s.get('container_details')
-                            hover = f"<b>{s['container_id']}</b><br>Bloc {sel_block_id}, R{stack['row']}, T{s['tier']}"
+                            hover = f"<b>{s['container_id']}</b><br>Bloc {st.session_state.selected_block}, R{stack['row']}, T{s['tier']}"
                             if details:
                                 hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
                             t_d.append(hover)
@@ -281,7 +333,7 @@ try:
                 st.plotly_chart(fig_detail, use_container_width=True)
 
         # --- TAB 3 : ANALYTICS ---
-        with tabs[2]:
+        elif st.session_state.active_tab == "Statistiques":
             st.subheader("Performance du Yard")
             k1, k2, k3 = st.columns(3)
             k1.metric("Occupation Globale", f"{yard_data['occupancy_rate']*100:.1f}%")
