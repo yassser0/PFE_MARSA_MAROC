@@ -14,7 +14,7 @@ Version : 1.0
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -119,8 +119,18 @@ class PlacementResponse(BaseModel):
     message: str
 
 
+class PlacementBatchResponse(BaseModel):
+    """Réponse pour l'insertion en masse de données (Pipeline)."""
+    total_received: int
+    containers_placed: int
+    failed_placements: int
+    yard_occupancy: str
+    processing_time_ms: float
+    message: str
+
+
 # ---------------------------------------------------------------------------
-# Endpoint principal
+# Endpoints
 # ---------------------------------------------------------------------------
 
 @router.post(
@@ -229,3 +239,76 @@ async def place_container(
         proposed_evaluation=report.get("proposed_evaluation"),
         message=f"Conteneur {container.id} placé avec succès en {best_slot.position_key}.",
     )
+
+
+@router.post(
+    "/place_batch",
+    response_model=PlacementBatchResponse,
+    summary="Pipeline Data : Placer un lot de conteneurs (Batch)",
+    description="""
+Accepte une liste entière de conteneurs entrants (ex: fichier portuaire Excel).
+**Optimisation magique** : La route trie d'abord les conteneurs par `departure_time` décroissant (EDD inverse).
+Les conteneurs partant le plus tard sont donc empilés au fond en premier, garantissant mathématiquement **zéro rehandle**.
+    """
+)
+async def place_containers_batch(
+    requests: List[ContainerRequest],
+):
+    import time
+    import uuid
+    from api.main import app as _app
+
+    yard = _app.state.yard
+    container_registry = _app.state.container_registry
+
+    start_time = time.perf_counter()
+
+    # 1. Trier la pipeline par Date de Départ Inverse (EDD)
+    # Les conteneurs partant le plus tard (departure_time le plus grand) sont placés en premier.
+    sorted_requests = sorted(requests, key=lambda r: r.departure_time, reverse=True)
+
+    placed_count = 0
+    failed_count = 0
+
+    for req in sorted_requests:
+        container = Container(
+            id=f"B-{uuid.uuid4().hex[:8].upper()}",
+            size=req.size,
+            weight=req.weight,
+            departure_time=req.departure_time,
+            type=req.type,
+        )
+
+        allowed_blocks = None
+        if container.size == 20 and req.zones_20ft:
+            allowed_blocks = [z.upper() for z in req.zones_20ft]
+        elif container.size == 40 and req.zones_40ft:
+            allowed_blocks = [z.upper() for z in req.zones_40ft]
+
+        best_result = find_best_slot(container, yard, allowed_blocks=allowed_blocks)
+        
+        if best_result is None:
+            failed_count += 1
+            continue
+
+        best_slot, _ = best_result
+        success = yard.place_container(best_slot, container)
+        
+        if success:
+            container_registry[container.id] = container
+            placed_count += 1
+        else:
+            failed_count += 1
+
+    end_time = time.perf_counter()
+    duration_ms = (end_time - start_time) * 1000
+
+    return PlacementBatchResponse(
+        total_received=len(requests),
+        containers_placed=placed_count,
+        failed_placements=failed_count,
+        yard_occupancy=f"{yard.occupancy_rate:.1%}",
+        processing_time_ms=round(duration_ms, 2),
+        message=f"{placed_count}/{len(requests)} placés avec succès en {duration_ms:.0f}ms."
+    )
+
