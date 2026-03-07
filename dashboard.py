@@ -16,6 +16,7 @@ st.set_page_config(
 # --- Configuration du Mode Live (Auto-Refresh) ---
 # Si le mode live est activé, la page se recharge toutes les 2 secondes (2000 ms)
 live_mode = st.sidebar.checkbox("Activer le Streaming Live", value=False, help="Cochez pour voir les conteneurs s'empiler en direct.")
+perf_mode = st.sidebar.checkbox("Mode Performance 3D", value=False, help="Dessine des points légers au lieu de cubes complexes. Recommandé pour tester avec > 500 conteneurs.")
 if live_mode:
     st_autorefresh(interval=2000, limit=None, key="data_streaming")
 
@@ -268,6 +269,27 @@ if yard_data:
         # Helper pour ajouter des cubes
         def add_cube_trace(fig, x_coords, y_coords, z_coords, color, name, hover_texts, offset=(0,0)):
             if not x_coords: return
+            
+            if perf_mode:
+                # Mode Performance (Scatter3d)
+                X, Y, Z = [], [], []
+                ox, oy = offset
+                for x, y, z in zip(x_coords, y_coords, z_coords):
+                    X.append(x + ox + 0.4)
+                    Y.append(y + oy + 0.4)
+                    Z.append(z + 0.45)
+                
+                scatter = go.Scatter3d(
+                    x=X, y=Y, z=Z,
+                    mode='markers',
+                    marker=dict(symbol='square', size=12, color=color, opacity=0.9),
+                    name=name,
+                    text=hover_texts,
+                    hoverinfo='text' if hover_texts else 'name'
+                )
+                fig.add_trace(scatter)
+                return
+
             X, Y, Z, I, J, K = [], [], [], [], [], []
             dx, dy, dz = 0.8, 0.8, 0.9 
             ox, oy = offset

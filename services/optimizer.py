@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import math
 import random
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from models.container import Container
 from models.yard import Slot, Stack, Yard
@@ -131,6 +131,7 @@ def simulated_annealing_optimization(
     container: Container,
     yard: Yard,
     valid_slots: List[Slot],
+    precomputed_scores: Optional[Dict[str, float]] = None,
     initial_temp: float = 100.0,
     cooling_rate: float = 0.90,
     min_temp: float = 0.1,
@@ -139,10 +140,15 @@ def simulated_annealing_optimization(
     """
     Métaheuristique : Algorithme de Recuit Simulé (Simulated Annealing)
     """
+    def get_cost(slot: Slot) -> float:
+        if precomputed_scores is not None and slot.position_key in precomputed_scores:
+            return precomputed_scores[slot.position_key]
+        return calculate_score(slot, container, yard)
+
     # 1. État initial (placement aléatoire)
     current_slot = random.choice(valid_slots)
     try:
-        current_cost = calculate_score(current_slot, container, yard)
+        current_cost = get_cost(current_slot)
     except ValueError:
         current_cost = float('inf')
         
@@ -161,7 +167,7 @@ def simulated_annealing_optimization(
                 
             try:
                 # 2. Fonction de coût pénalisant le rehandling, la distance, etc.
-                neighbor_cost = calculate_score(neighbor_slot, container, yard)
+                neighbor_cost = get_cost(neighbor_slot)
             except ValueError:
                 continue
                 
@@ -252,9 +258,10 @@ def find_best_slot(
     # Tri par score croissant (faible score = meilleur) et sélection des K meilleurs
     scored_slots.sort(key=lambda x: x[0])
     top_candidates = [slot for score, slot in scored_slots[:top_k]]
+    precomputed = {slot.position_key: score for score, slot in scored_slots}
 
     # 2. Application de l'approche métaheuristique (SA) sur les candidats filtrés.
-    return simulated_annealing_optimization(container, yard, top_candidates)
+    return simulated_annealing_optimization(container, yard, top_candidates, precomputed_scores=precomputed)
 
 
 # ---------------------------------------------------------------------------
