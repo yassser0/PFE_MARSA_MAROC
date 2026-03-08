@@ -234,17 +234,19 @@ async def run_housekeeping(request: HousekeepingRequest = HousekeepingRequest())
         max_no_improve=request.max_no_improve,
     )
 
-    msg = (
-        f"Housekeeping terminé : {result.rehandles_reduced} rehandle(s) éliminé(s) "
-        f"en {result.moves_made} mouvement(s) ({result.improvement_pct}% d'amélioration)."
-        if result.rehandles_reduced > 0
-        else "Yard déjà optimal — aucun rehandle détecté."
-    )
+    msg = f"Housekeeping terminé ({result.iterations} itér). "
+    if result.gaps_fixed > 0:
+        msg += f"🛠️ {result.gaps_fixed} gaps corrigés. "
+    
+    if result.violations_reduced > 0:
+        msg += f"✅ {result.violations_reduced} rehandles éliminés en {result.moves_made} mouv. ({result.improvement_pct}%)."
+    else:
+        msg += "Yard déjà optimal (EDD/Poids)."
 
     return HousekeepingResponse(
-        initial_rehandles=result.initial_rehandles,
-        final_rehandles=result.final_rehandles,
-        rehandles_reduced=result.rehandles_reduced,
+        initial_rehandles=result.initial_violations,
+        final_rehandles=result.final_violations,
+        rehandles_reduced=result.violations_reduced,
         moves_made=result.moves_made,
         iterations=result.iterations,
         improvement_pct=result.improvement_pct,

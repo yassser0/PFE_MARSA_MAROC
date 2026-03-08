@@ -23,8 +23,10 @@ Version : 1.0 (Tabu Search Housekeeping)
 
 from __future__ import annotations
 
+import math
 import random
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from models.container import Container
@@ -44,39 +46,61 @@ Move = Tuple[str, int, str, int]   # (src_block, src_row, dst_block, dst_row)
 
 def _count_yard_violations(yard: Yard) -> int:
     """
-    Compte le nombre total de violations dans le yard :
-    - Rehandles (EDD) : container_bas part AVANT container_dessus.
-    - Instabilités (Poids) : container_bas est plus LÉGER que container_dessus.
-    
-    Un coût de 0 signifie que le yard est parfaitement ordonné et stable.
+    Compte le nombre total de violations (cost function).
+    Gère gracieusement les IDs manquants dans le registre.
     """
     total = 0
+    registry = yard.containers_registry
     for block in yard.blocks.values():
         for stack in block.stacks.values():
-            occupied = [
-                s for s in stack.slots
-                if s.container_id and s.container_id in yard.containers_registry
-            ]
-            # Comparer chaque paire (bas, haut) pour EDD et Poids
+            occupied = [s for s in stack.slots if s.container_id]
+            
             for i in range(len(occupied)):
-                c_low = yard.containers_registry[occupied[i].container_id]
+                cid_low = occupied[i].container_id
+                if cid_low not in registry: continue
+                c_low = registry[cid_low]
                 
                 for j in range(i + 1, len(occupied)):
-                    c_high = yard.containers_registry[occupied[j].container_id]
+                    cid_high = occupied[j].container_id
+                    if cid_high not in registry: continue
+                    c_high = registry[cid_high]
                     
-                    # Violation 1 : EDD (Rehandle)
-                    # Le conteneur du haut part après celui du bas -> rehandle
                     if c_high.departure_time > c_low.departure_time:
                         total += 1
-                        
-                    # Violation 2 : Poids (Instabilité)
-                    # Uniquement pour le conteneur DIRECTEMENT au-dessus (j = i+1)
-                    # pour éviter le sur-comptage, ou pour toutes les paires ? 
-                    # Généralement, on regarde le contact direct.
-                    if j == i + 1:
-                        if c_high.weight > c_low.weight:
-                            total += 1
+                    if j == i + 1 and c_high.weight > c_low.weight:
+                        total += 1
+            
+            # Pénalité énorme pour les gaps (floating containers)
+            # Tier N occupé alors que Tier N-1 est vide
+            for i in range(1, len(stack.slots)):
+                if stack.slots[i].container_id and not stack.slots[i-1].container_id:
+                    total += 500 # Coût dissuasif
     return total
+
+def _compact_stack(stack: Stack) -> int:
+    """Élimine les gaps dans une pile en faisant descendre les conteneurs."""
+    moves = 0
+    while True:
+        gap_found = False
+        for i in range(1, len(stack.slots)):
+            if stack.slots[i].container_id and not stack.slots[i-1].container_id:
+                stack.slots[i-1].container_id = stack.slots[i].container_id
+                stack.slots[i].container_id = None
+                gap_found = True
+                moves += 1
+        if not gap_found:
+            break
+    return moves
+
+def _compact_yard(yard: Yard) -> int:
+    """Élimine tous les gaps du yard."""
+    total_moves = 0
+    for block in yard.blocks.values():
+        for stack in block.stacks.values():
+            total_moves += _compact_stack(stack)
+    if total_moves > 0:
+        print(f"🧹 Compaction : {total_moves} conteneurs descendus pour boucher les vides.")
+    return total_moves
 
 
 def _get_stack_container_sizes(stack: Stack, registry: dict) -> set:
@@ -200,17 +224,17 @@ def _undo_move(yard: Yard, move: Move, container_id: str) -> None:
     if dst_stack is None or src_stack is None:
         return
 
-    # Retirer de la destination (dernier occupé)
+    # 1. Retirer de la destination (le plus haut occupé correspondant à l'ID)
     for s in reversed(dst_stack.slots):
         if s.container_id == container_id:
             s.container_id = None
             break
 
-    # Remettre en source (prochain libre)
-    for s in reversed(src_stack.slots):
-        if not s.container_id:
-            s.container_id = container_id
-            break
+    # 2. Remettre en source (le plus bas libre pour éviter les "floating containers")
+    # top_free_slot renvoie le premier slot libre en partant du bas (tier 1).
+    target_slot = src_stack.top_free_slot
+    if target_slot:
+        target_slot.container_id = container_id
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +250,11 @@ class HousekeepingResult:
     moves_made: int
     iterations: int
     improvement_pct: float
+    gaps_fixed: int = 0
 
+
+# Global lock for yard operations during metaheuristics
+YARD_LOCK = threading.Lock()
 
 def run_tabu_search_housekeeping(
     yard: Yard,
@@ -235,99 +263,92 @@ def run_tabu_search_housekeeping(
     max_no_improve: int = 50,
 ) -> HousekeepingResult:
     """
-    Exécute la Recherche Tabou pour reorganiser le yard et éliminer
-    les violations EDD et de poids existantes.
-
-    Parameters
-    ----------
-    yard            : état actuel du yard
-    max_iterations  : nombre maximal d'itérations de la boucle
-    tabu_tenure     : durée pendant laquelle un mouvement reste dans la liste tabou
-    max_no_improve  : arrête si aucune amélioration après N itérations
-
-    Returns
-    -------
-    HousekeepingResult : statistiques de l'optimisation
+    Exécute la Recherche Tabou avec protection thread-safe et auto-compaction.
     """
-    initial_cost = _count_yard_violations(yard)
-    current_cost = initial_cost
-    best_cost    = initial_cost
-    moves_made   = 0
-    no_improve   = 0
+    with YARD_LOCK:
+        # 0. Compactage initial pour boucher les trous (sécurité visualization)
+        gaps_fixed = _compact_yard(yard)
+        
+        initial_cost = _count_yard_violations(yard)
+        current_cost = initial_cost
+        best_cost    = initial_cost
+        moves_made   = 0
+        no_improve   = 0
 
-    # Liste tabou : dict {move → iteration de libération}
-    tabu_dict: Dict[Move, int] = {}
+        # Liste tabou : dict {move → iteration de libération}
+        tabu_dict: Dict[Move, int] = {}
 
-    for iteration in range(max_iterations):
-        if current_cost == 0:
-            break  # Yard parfaitement ordonné, on s'arrête
-        if no_improve >= max_no_improve:
-            break  # Aucune amélioration depuis longtemps
+        for iteration in range(max_iterations):
+            if current_cost == 0:
+                break
+            if no_improve >= max_no_improve:
+                break
 
-        candidates = _generate_candidate_moves(yard)
-        if not candidates:
-            break  # Plus de mouvements possibles
+            candidates = _generate_candidate_moves(yard)
+            if not candidates:
+                break
 
-        # Évaluer les candidats non-tabous (ou qui battent le meilleur global)
-        best_move: Optional[Move] = None
-        best_move_cost = float('inf')
-        best_move_container_id: Optional[str] = None
+            best_move: Optional[Move] = None
+            best_move_cost = float('inf')
+            best_move_container_id: Optional[str] = None
 
-        # Limiter l'évaluation pour les performances (max 50 candidats aléatoires)
-        sample = random.sample(candidates, min(50, len(candidates)))
+            sample = random.sample(candidates, min(50, len(candidates)))
 
-        for move in sample:
-            # Récupérer l'ID du conteneur qui sera déplacé
-            src_stack = yard.get_stack(move[0], move[1])
-            if src_stack is None:
+            for move in sample:
+                src_stack = yard.get_stack(move[0], move[1])
+                if not src_stack: continue
+                
+                # Trouver l'ID du conteneur top
+                container_id = None
+                for s in reversed(src_stack.slots):
+                    if s.container_id:
+                        container_id = s.container_id
+                        break
+                
+                if not container_id: continue
+
+                # Appliquer temporairement avec sécurité
+                try:
+                    ok = _apply_move(yard, move)
+                    if not ok: continue
+                    
+                    candidate_cost = _count_yard_violations(yard)
+                    
+                    # Critère tabou et aspiration
+                    is_tabu = tabu_dict.get(move, 0) > iteration
+                    if (not is_tabu or candidate_cost < best_cost):
+                        if candidate_cost < best_move_cost:
+                            best_move = move
+                            best_move_cost = candidate_cost
+                            best_move_container_id = container_id
+                finally:
+                    _undo_move(yard, move, container_id)
+
+            if best_move is None:
+                no_improve += 1
                 continue
-            container_id = None
-            for s in reversed(src_stack.slots):
-                if s.container_id:
-                    container_id = s.container_id
-                    break
-            if container_id is None:
-                continue
 
-            # Appliquer temporairement
-            ok = _apply_move(yard, move)
-            if not ok:
-                continue
-            candidate_cost = _count_yard_violations(yard)
-            _undo_move(yard, move, container_id)
+            # Appliquer le meilleur mouvement
+            _apply_move(yard, best_move)
+            tabu_dict[best_move] = iteration + tabu_tenure
+            current_cost = best_move_cost
+            moves_made += 1
 
-            is_tabu = tabu_dict.get(move, 0) > iteration
-            # Critère d'aspiration : accepte même si tabou si c'est le meilleur global
-            if (not is_tabu or candidate_cost < best_cost):
-                if candidate_cost < best_move_cost:
-                    best_move = move
-                    best_move_cost = candidate_cost
-                    best_move_container_id = container_id
+            if current_cost < best_cost:
+                best_cost = current_cost
+                no_improve = 0
+            else:
+                no_improve += 1
 
-        if best_move is None:
-            no_improve += 1
-            continue
+        violations_reduced = initial_cost - best_cost
+        improvement_pct = (violations_reduced / initial_cost * 100) if initial_cost > 0 else 100.0
 
-        # Appliquer le meilleur mouvement
-        _apply_move(yard, best_move)
-        tabu_dict[best_move] = iteration + tabu_tenure
-        current_cost = best_move_cost
-        moves_made += 1
-
-        if current_cost < best_cost:
-            best_cost = current_cost
-            no_improve = 0
-        else:
-            no_improve += 1
-
-    violations_reduced = initial_cost - best_cost
-    improvement_pct = (violations_reduced / initial_cost * 100) if initial_cost > 0 else 100.0
-
-    return HousekeepingResult(
-        initial_violations=initial_cost,
-        final_violations=best_cost,
-        violations_reduced=violations_reduced,
-        moves_made=moves_made,
-        iterations=min(max_iterations, iteration + 1),
-        improvement_pct=round(improvement_pct, 1),
-    )
+        return HousekeepingResult(
+            initial_violations=initial_cost,
+            final_violations=best_cost,
+            violations_reduced=violations_reduced,
+            moves_made=moves_made,
+            iterations=min(max_iterations, iteration + 1),
+            improvement_pct=round(improvement_pct, 1),
+            gaps_fixed=gaps_fixed
+        )
