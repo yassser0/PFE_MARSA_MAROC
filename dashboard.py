@@ -95,7 +95,9 @@ st.markdown("<p style='color: #8B949E; font-size: 1.1rem; margin-bottom: 30px;'>
 # --- FETCH GLOBAL DATA EARLY FOR HEADER KPIS ---
 yard_data = None
 try:
-    resp = requests.get(f"{API_URL}/yard")
+    import time as _time
+    # Ajout d'un paramètre timestamp pour forcer le contournement du cache (cache-buster)
+    resp = requests.get(f"{API_URL}/yard?_t={_time.time()}")
     if resp.status_code == 200:
         yard_data = resp.json()
 except requests.exceptions.ConnectionError:
@@ -166,9 +168,18 @@ if init_btn:
         except requests.exceptions.ConnectionError:
             st.sidebar.error("🚨 Impossible de se connecter à l'API.")
 
-if st.sidebar.button("🔄 Actualiser les données", use_container_width=True):
+if st.sidebar.button("🗑️ Vider le Yard & Actualiser", use_container_width=True, type="primary"):
+    with st.spinner("Nettoyage en cours..."):
+        try:
+            requests.post(f"{API_URL}/yard/init", json={"blocks": 4, "rows": 10, "max_height": 4})
+        except requests.exceptions.ConnectionError:
+            pass
+    st.session_state.last_placed = None
+    st.cache_data.clear()
+    st.cache_resource.clear()
     st.rerun()
 
+st.sidebar.caption(f"Dernière actualisation : {datetime.now().strftime('%H:%M:%S')}")
 st.sidebar.divider()
 
 # --- Housekeeping (Tabu Search) ---
