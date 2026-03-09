@@ -186,7 +186,7 @@ st.sidebar.divider()
 st.sidebar.header("🔧 Housekeeping (Off-Peak)")
 st.sidebar.caption("Réorganise le yard pour éliminer les rehandles existants.")
 
-if st.sidebar.button("▶ Lancer le Tabu Search", use_container_width=True, type="primary"):
+if st.sidebar.button("▶ Lancer le Tabu Search pour Réorganise le yard", use_container_width=True, type="primary"):
     with st.sidebar:
         with st.spinner("Tabu Search en cours..."):
             try:
