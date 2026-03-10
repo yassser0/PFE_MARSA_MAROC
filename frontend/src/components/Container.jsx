@@ -1,31 +1,50 @@
 import React, { useState } from 'react';
+import { Edges } from '@react-three/drei';
 
-const Container = ({ slot, position, onSelect }) => {
+const Container = ({ slot, position, onSelect, searchQuery }) => {
     const [hovered, setHovered] = useState(false);
 
-    // Color coding by type
-    let color = '#2ca02c'; // Default green
-    if (slot.container_details?.type === 'export') color = '#2c7fb8';
-    if (slot.container_details?.type === 'transshipment') color = '#feb24c';
+    const isMatch = searchQuery && (
+        searchQuery === slot.container_id ||
+        (slot.container_details?.location && searchQuery === slot.container_details.location)
+    );
+
+    // Realistic color palette
+    let color = '#2ca02c'; // Green
+    if (slot.container_details?.type === 'export') color = '#2c7fb8'; // Blue
+    if (slot.container_details?.type === 'transshipment') color = '#e67e22'; // Orange-ish
+
+    if (isMatch) color = '#00fdff'; // Highlight color
 
     return (
-        <mesh
-            position={position}
-            castShadow
-            receiveShadow
-            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); if (onSelect) onSelect(slot); }}
-            onPointerOut={() => setHovered(false)}
-            onClick={(e) => { e.stopPropagation(); if (onSelect) onSelect(slot); }}
-        >
-            <boxGeometry args={[1.2, 0.9, 1]} />
-            <meshStandardMaterial
-                color={hovered ? '#4ade80' : color}
-                metalness={0.6}
-                roughness={0.2}
-                emissive={hovered ? '#2ca02c' : '#000'}
-                emissiveIntensity={hovered ? 0.5 : 0}
-            />
-        </mesh>
+        <group position={position}>
+            <mesh
+                castShadow
+                receiveShadow
+                onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+                onPointerOut={() => setHovered(false)}
+                onClick={(e) => { e.stopPropagation(); if (onSelect) onSelect(slot); }}
+            >
+                <boxGeometry args={[2.3, 0.9, 1.2]} />
+                <meshStandardMaterial
+                    color={color}
+                    metalness={0.7}
+                    roughness={0.3}
+                    emissive={hovered ? color : '#000'}
+                    emissiveIntensity={hovered ? 0.3 : 0}
+                />
+                {/* Simulated corrugation/edges for realism */}
+                <Edges
+                    threshold={15}
+                    color={hovered ? '#fff' : '#111'}
+                    renderOrder={1}
+                >
+                    <meshBasicMaterial color={hovered ? '#fff' : '#222'} />
+                </Edges>
+            </mesh>
+
+            {/* Simple ID text or indicator could go here in future */}
+        </group>
     );
 };
 

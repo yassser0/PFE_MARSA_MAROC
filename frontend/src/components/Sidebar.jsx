@@ -4,8 +4,8 @@ import client from '../api/client';
 import { Settings, PlusSquare, Play, Trash2, Info, X } from 'lucide-react';
 import ContainerForm from './ContainerForm';
 
-const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection }) => {
-    const [config, setConfig] = useState({ blocks: 4, rows: 10, height: 4 });
+const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection, searchQuery, setSearchQuery }) => {
+    const [config, setConfig] = useState({ blocks: 4, bays: 10, rows: 3, height: 4 });
     const [loading, setLoading] = useState(false);
 
     const handleInit = async () => {
@@ -83,7 +83,11 @@ const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection }) =>
                         </div>
                         <div className="info-row">
                             <span className="info-label">Départ:</span>
-                            <span className="info-value">{new Date(selectedContainer.container_details?.departure_time).toLocaleDateString()}</span>
+                            <span className="info-value">{new Date(selectedContainer.container_details?.departure_time).toLocaleString()}</span>
+                        </div>
+                        <div className="info-row">
+                            <span className="info-label">Localisation:</span>
+                            <span className="info-value highlighted">{selectedContainer.container_details?.location || 'N/A'}</span>
                         </div>
                     </div>
                 </div>
@@ -96,6 +100,10 @@ const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection }) =>
                             <input type="number" value={config.blocks} onChange={e => setConfig({ ...config, blocks: parseInt(e.target.value) })} />
                         </div>
                         <div className="input-group">
+                            <label>Bays</label>
+                            <input type="number" value={config.bays} onChange={e => setConfig({ ...config, bays: parseInt(e.target.value) })} />
+                        </div>
+                        <div className="input-group">
                             <label>Rangées</label>
                             <input type="number" value={config.rows} onChange={e => setConfig({ ...config, rows: parseInt(e.target.value) })} />
                         </div>
@@ -106,6 +114,24 @@ const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection }) =>
                         <button className="primary-btn" onClick={handleInit} disabled={loading}>
                             {loading ? '...' : 'Initialiser'}
                         </button>
+                    </div>
+
+                    <div className="sidebar-section">
+                        <h3 className="section-title">🔍 Recherche</h3>
+                        <div className="input-group">
+                            <input
+                                type="text"
+                                placeholder="ID ou Loc (ex: A-B1-R1-T1)"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value.toUpperCase())}
+                                className="search-input"
+                            />
+                            {searchQuery && (
+                                <button className="clear-search-btn" onClick={() => setSearchQuery('')}>
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="sidebar-section">

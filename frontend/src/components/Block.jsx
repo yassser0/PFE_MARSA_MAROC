@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Container from './Container';
 
-const Block = ({ block, maxHeight, onSelectContainer, onSelectBlock, isDetailView }) => {
+const Block = ({ block, maxHeight, onSelectContainer, onSelectBlock, isDetailView, searchQuery }) => {
     const { x: bx, y: by, block_id, stacks } = block;
     const [hovered, setHovered] = useState(false);
 
@@ -23,15 +23,16 @@ const Block = ({ block, maxHeight, onSelectContainer, onSelectBlock, isDetailVie
             </mesh>
 
             {stacks.map((stack) => (
-                <group key={`${block_id}-R${stack.row}`} position={[0, 0, (stack.row - 1) * 1.2]}>
+                <group key={`${block_id}-B${stack.bay}-R${stack.row}`} position={[(stack.row - 1) * 2.5, 0, (stack.bay - 1) * 1.5]}>
                     {stack.slots.map((slot) => {
                         if (slot.is_free) return null;
                         return (
                             <Container
-                                key={`${block_id}-${stack.row}-${slot.tier}`}
+                                key={`${block_id}-${stack.bay}-${stack.row}-${slot.tier}`}
                                 slot={slot}
-                                position={[block.width / 2, (slot.tier - 0.5) * 1.0, 0.5]}
+                                position={[0, (slot.tier - 0.5) * 1.0, 0]}
                                 onSelect={onSelectContainer}
+                                searchQuery={searchQuery}
                             />
                         );
                     })}

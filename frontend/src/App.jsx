@@ -14,6 +14,7 @@ function App() {
 
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [selectedContainer, setSelectedContainer] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchYardData = async () => {
     try {
@@ -39,7 +40,7 @@ function App() {
 
     switch (activeTab) {
       case '3D View':
-        return <Yard3D data={yardData} onSelectContainer={setSelectedContainer} onSelectBlock={(id) => { setSelectedBlock(id); setActiveTab('Detail'); }} />;
+        return <Yard3D data={yardData} onSelectContainer={setSelectedContainer} onSelectBlock={(id) => { setSelectedBlock(id); setActiveTab('Detail'); }} searchQuery={searchQuery} />;
       case 'Detail':
         const block = yardData.blocks.find(b => b.block_id === (selectedBlock || 'A'));
         return (
@@ -49,7 +50,7 @@ function App() {
               <button className="secondary-btn small" onClick={() => setActiveTab('3D View')}>Retour</button>
             </div>
             <div className="detail-canvas-wrapper">
-              <Yard3D data={{ ...yardData, blocks: [block] }} isDetailView onSelectContainer={setSelectedContainer} />
+              <Yard3D data={{ ...yardData, blocks: [block] }} isDetailView onSelectContainer={setSelectedContainer} searchQuery={searchQuery} />
             </div>
           </div>
         );
@@ -84,6 +85,8 @@ function App() {
         onUpdate={fetchYardData}
         selectedContainer={selectedContainer}
         onClearSelection={() => setSelectedContainer(null)}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
       />
 
       <main className="main-content">
