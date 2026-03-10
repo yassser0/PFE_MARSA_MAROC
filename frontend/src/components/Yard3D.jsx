@@ -59,7 +59,7 @@ const Yard3D = ({ data, onSelectContainer, onSelectBlock, isDetailView, searchQu
                                     {(!isDetailView || data.blocks.length === 1) && (
                                         <Crane
                                             position={[block.x + block.width / 2 - 1.2, 0, block.y + block.length / 2]}
-                                            width={block.width + 4}
+                                            width={block.width + 10}
                                             length={block.length}
                                         />
                                     )}

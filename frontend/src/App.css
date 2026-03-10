@@ -140,6 +140,35 @@ button:active {
   margin-bottom: 20px;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.block-selector {
+  background: var(--bg-card);
+  color: white;
+  border: 1px solid var(--border-light);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.block-selector:hover {
+  border-color: var(--accent-green);
+}
+
+.block-selector option {
+  background: #1e232d;
+  color: white;
+}
+
 .detail-canvas-wrapper {
   flex: 1;
   border-radius: 12px;

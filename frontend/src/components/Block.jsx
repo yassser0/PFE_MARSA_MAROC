@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Text } from '@react-three/drei';
 import Container from './Container';
 
 const Block = ({ block, maxHeight, onSelectContainer, onSelectBlock, isDetailView, searchQuery }) => {
@@ -12,18 +13,32 @@ const Block = ({ block, maxHeight, onSelectContainer, onSelectBlock, isDetailVie
             onPointerOut={() => setHovered(false)}
             onClick={(e) => { e.stopPropagation(); if (onSelectBlock) onSelectBlock(block_id); }}
         >
-            {/* Block Ground Slab */}
-            <mesh position={[block.width / 2, 0.05, block.length / 2]} receiveShadow>
-                <boxGeometry args={[block.width, 0.1, block.length]} />
+            {/* Block Ground Slab - Dynamic width for spacing */}
+            <mesh position={[block.width, -0.05, block.length / 2]} receiveShadow>
+                <boxGeometry args={[block.width * 2, 0.1, block.length]} />
                 <meshStandardMaterial
-                    color={hovered && !isDetailView ? "#4ade80" : "#333"}
-                    opacity={hovered && !isDetailView ? 0.4 : 0.2}
+                    color={hovered && !isDetailView ? "#4ade80" : "#222"}
+                    opacity={hovered && !isDetailView ? 0.4 : 0.6}
                     transparent
                 />
             </mesh>
 
+            {/* Block Name Label */}
+            {!isDetailView && (
+                <Text
+                    position={[block.width, 10, block.length / 2]}
+                    fontSize={3}
+                    color="white"
+                    anchorX="center"
+                    anchorY="middle"
+                    rotation={[0, -Math.PI / 2, 0]} // Rotate to face camera better
+                >
+                    Bloc {block_id}
+                </Text>
+            )}
+
             {stacks.map((stack) => (
-                <group key={`${block_id}-B${stack.bay}-R${stack.row}`} position={[(stack.row - 1) * 2.5, 0, (stack.bay - 1) * 1.5]}>
+                <group key={`${block_id}-B${stack.bay}-R${stack.row}`} position={[(stack.row - 1) * 3.5, 0, (stack.bay - 1) * 1.5]}>
                     {stack.slots.map((slot) => {
                         if (slot.is_free) return null;
                         return (

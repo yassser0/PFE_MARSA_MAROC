@@ -46,7 +46,18 @@ function App() {
         return (
           <div className="view-container">
             <div className="view-header">
-              <h3>Inspection du Bloc {block?.block_id}</h3>
+              <div className="header-left">
+                <h3>Inspection du Bloc</h3>
+                <select
+                  value={selectedBlock || 'A'}
+                  onChange={(e) => setSelectedBlock(e.target.value)}
+                  className="block-selector"
+                >
+                  {yardData.blocks.map(b => (
+                    <option key={b.block_id} value={b.block_id}>Bloc {b.block_id}</option>
+                  ))}
+                </select>
+              </div>
               <button className="secondary-btn small" onClick={() => setActiveTab('3D View')}>Retour</button>
             </div>
             <div className="detail-canvas-wrapper">
