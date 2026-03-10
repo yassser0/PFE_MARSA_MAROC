@@ -144,7 +144,8 @@ if yard_data:
 st.sidebar.header("Configuration du Yard")
 with st.sidebar.form("config_form"):
     blocks = st.number_input("Nombre de blocs", min_value=1, max_value=20, value=4)
-    rows = st.number_input("Nombre de rangées par bloc", min_value=1, max_value=50, value=10)
+    bays = st.number_input("Nombre de bays par bloc", min_value=1, max_value=50, value=10)
+    rows = st.number_input("Nombre de rangées par bloc", min_value=1, max_value=50, value=3)
     height = st.number_input("Hauteur maximum", min_value=1, max_value=8, value=4)
     
     init_btn = st.form_submit_button("Initialiser / Réinitialiser le Yard")
@@ -155,7 +156,7 @@ if init_btn:
             # Appel à la (future) nouvelle route API pour réinitialiser le yard
             response = requests.post(
                 f"{API_URL}/yard/init", 
-                json={"blocks": blocks, "rows": rows, "max_height": height}
+                json={"blocks": blocks, "bays": bays, "rows": rows, "max_height": height}
             )
             if response.status_code == 200:
                 data = response.json()
@@ -171,7 +172,7 @@ if init_btn:
 if st.sidebar.button("🗑️ Vider le Yard & Actualiser", use_container_width=True, type="primary"):
     with st.spinner("Nettoyage en cours..."):
         try:
-            requests.post(f"{API_URL}/yard/init", json={"blocks": 4, "rows": 10, "max_height": 4})
+            requests.post(f"{API_URL}/yard/init", json={"blocks": 4, "bays": 10, "rows": 3, "max_height": 4})
         except requests.exceptions.ConnectionError:
             pass
     st.session_state.last_placed = None
@@ -302,7 +303,7 @@ if yard_data:
                 return
 
             X, Y, Z, I, J, K = [], [], [], [], [], []
-            dx, dy, dz = 0.8, 0.8, 0.9 
+            dx, dy, dz = 0.8, 1.3, 0.9 
             ox, oy = offset
             for idx, (x, y, z) in enumerate(zip(x_coords, y_coords, z_coords)):
                 ax, ay = x + ox, y + oy # Apply spatial offset
@@ -386,19 +387,20 @@ if yard_data:
                     for s in stack.get('slots', []):
                         if not s.get('is_free'):
                             tier_idx = s['tier'] - 1
-                            row_y_offset = (stack['row'] - 1) * 1.1
+                            row_x_offset = (stack['row'] - 1) * 2.5
+                            bay_y_offset = (stack['bay'] - 1) * 1.5
                             
                             details = s.get('container_details')
-                            hover = f"<b>{s['container_id']}</b><br>Bloc {block['block_id']}, R{stack['row']}, T{s['tier']}"
+                            hover = f"<b>{s['container_id']}</b><br>Bloc {block['block_id']}, B{stack['bay']}, R{stack['row']}, T{s['tier']}"
                             if details:
                                 hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
                             
-                            is_recent = last_placed and last_placed['block'] == block['block_id'] and last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']
+                            is_recent = last_placed and last_placed['block'] == block['block_id'] and last_placed['bay'] == stack['bay'] and last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']
                             
                             if is_recent:
-                                x_last.append(0); y_last.append(row_y_offset); z_last.append(tier_idx); text_last.append(hover)
+                                x_last.append(row_x_offset); y_last.append(bay_y_offset); z_last.append(tier_idx); text_last.append(hover)
                             else:
-                                x_norm.append(0); y_norm.append(row_y_offset); z_norm.append(tier_idx); text_norm.append(hover)
+                                x_norm.append(row_x_offset); y_norm.append(bay_y_offset); z_norm.append(tier_idx); text_norm.append(hover)
                 
                 add_cube_trace(fig_global, x_norm, y_norm, z_norm, color='#2ca02c', name=f'B-{block["block_id"]}', hover_texts=text_norm, offset=(bx, by))
                 if x_last:
@@ -407,9 +409,9 @@ if yard_data:
             fig_global.update_layout(
                 clickmode='event+select',
                 scene=dict(
-                    xaxis=dict(title="Axe X (Longitudinal)", backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
-                    yaxis=dict(title="Axe Y (Transversal)", backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
-                    zaxis=dict(title="Élévation", range=[0, yard_data['max_height'] + 2], backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
+                    xaxis=dict(title="Axe Transversal (X: Rangées)", backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
+                    yaxis=dict(title="Axe Longitudinal (Y: Bays)", backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
+                    zaxis=dict(title="Élévation (Z: Niveaux)", range=[0, yard_data['max_height'] + 2], backgroundcolor="rgba(0,0,0,0)", gridcolor="#333", showbackground=False),
                     aspectmode='data'
                 ),
                 margin=dict(l=0, r=0, b=0, t=0), height=700,
@@ -454,22 +456,23 @@ if yard_data:
                 for stack in block_data['stacks']:
                     for s in stack['slots']:
                         if not s['is_free']:
-                            x_d.append(stack['row']-1); y_d.append(0); z_d.append(s['tier']-1)
+                            x_d.append((stack['row']-1) * 2.5); y_d.append((stack['bay']-1) * 1.5); z_d.append(s['tier']-1)
                             details = s.get('container_details')
-                            hover = f"<b>{s['container_id']}</b><br>Bloc {st.session_state.selected_block}, R{stack['row']}, T{s['tier']}"
+                            hover = f"<b>{s['container_id']}</b><br>Bloc {st.session_state.selected_block}, B{stack['bay']}, R{stack['row']}, T{s['tier']}"
                             if details:
                                 hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
                             t_d.append(hover)
                 
                 add_cube_trace(fig_detail, x_d, y_d, z_d, color='#2ca02c', name='Stack', hover_texts=t_d)
                 
-                max_r = block_data['n_rows']
+                max_b = yard_data['n_bays']
+                max_r = yard_data['n_rows']
                 fig_detail.update_layout(
                     scene=dict(
-                        xaxis=dict(title='Rangée', range=[-1, max_r]),
-                        yaxis=dict(title='', range=[-1, 1], showticklabels=False),
-                        zaxis=dict(title='Niveau', range=[0, yard_data['max_height'] + 1]),
-                        aspectmode='manual', aspectratio=dict(x=2, y=0.5, z=1)
+                        xaxis=dict(title='Rangée (X)', range=[-1, max_r * 2.5]),
+                        yaxis=dict(title='Bay (Y)', range=[-1, max_b * 1.5]),
+                        zaxis=dict(title='Niveau (Z)', range=[0, yard_data['max_height'] + 1]),
+                        aspectmode='manual', aspectratio=dict(x=1.5, y=2, z=1)
                     ),
                     margin=dict(l=0, r=0, b=0, t=0), height=500
                 )

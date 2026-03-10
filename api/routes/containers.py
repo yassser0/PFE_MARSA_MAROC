@@ -80,7 +80,8 @@ class ContainerRequest(BaseModel):
 class ProposedSlotSchema(BaseModel):
     """Slot proposé pour évaluation d'optimalité."""
     block_id: str = Field(..., description="Identifiant du bloc (A, B, C, D)", examples=["A"])
-    row: int = Field(..., description="Numéro de rangée (commence à 1)", ge=1, examples=[3])
+    bay: int = Field(..., description="Numéro de travée (commence à 1)", ge=1, examples=[5])
+    row: int = Field(..., description="Numéro de rangée (commence à 1)", ge=1, examples=[2])
     tier: int = Field(..., description="Niveau de hauteur (commence à 1)", ge=1, examples=[1])
 
 
@@ -91,6 +92,7 @@ ContainerRequest.model_rebuild()
 class SlotResponse(BaseModel):
     """Représentation d'un slot dans la réponse."""
     block: str
+    bay: int
     row: int
     tier: int
     position_key: str
@@ -174,6 +176,7 @@ async def place_container(
     if request.proposed_slot:
         proposed_slot_obj = Slot(
             block_id=request.proposed_slot.block_id.upper(),
+            bay=request.proposed_slot.bay,
             row=request.proposed_slot.row,
             tier=request.proposed_slot.tier,
         )
@@ -199,6 +202,7 @@ async def place_container(
     # Effectuer le placement réel dans le yard
     best_slot = Slot(
         block_id=report["best_slot"]["block"],
+        bay=report["best_slot"]["bay"],
         row=report["best_slot"]["row"],
         tier=report["best_slot"]["tier"],
     )
@@ -222,6 +226,7 @@ async def place_container(
         container_type=container.type.value,
         best_slot=SlotResponse(
             block=report["best_slot"]["block"],
+            bay=report["best_slot"]["bay"],
             row=report["best_slot"]["row"],
             tier=report["best_slot"]["tier"],
             position_key=report["best_slot"]["position_key"],

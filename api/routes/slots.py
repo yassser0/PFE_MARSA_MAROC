@@ -30,6 +30,7 @@ router = APIRouter(prefix="/slots", tags=["Slots"])
 class AvailableSlotResponse(BaseModel):
     """Représentation d'un slot disponible."""
     block_id: str
+    bay: int
     row: int
     tier: int
     position_key: str
@@ -103,10 +104,11 @@ async def get_available_slots(
     slots_response: List[AvailableSlotResponse] = []
     for slot in valid_slots:
         block = yard.blocks.get(slot.block_id)
-        stack = block.stacks.get(slot.row) if block else None
+        stack = block.stacks.get((slot.bay, slot.row)) if block else None
         slots_response.append(
             AvailableSlotResponse(
                 block_id=slot.block_id,
+                bay=slot.bay,
                 row=slot.row,
                 tier=slot.tier,
                 position_key=slot.position_key,

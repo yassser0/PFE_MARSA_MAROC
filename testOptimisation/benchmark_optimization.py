@@ -12,7 +12,7 @@ from models.container import Container
 from data_generator.generator import generate_containers, generate_yard
 from services.optimizer import find_best_slot, get_valid_slots
 from services.scoring import calculate_score
-from services.housekeeping import _count_rehandle_pairs
+from services.housekeeping import _count_yard_violations
 
 def run_benchmark(n_containers=50):
     print("="*60)
@@ -23,7 +23,7 @@ def run_benchmark(n_containers=50):
     containers = generate_containers(n_containers)
     
     # 2. TEST A : Placement Aléatoire (Baseline)
-    yard_random = generate_yard(blocks=4, rows=10, max_height=4)
+    yard_random = generate_yard(blocks=4, bays=10, rows=3, max_height=4)
     start_random = time.time()
     rehandles_random_at_placement = 0
     total_score_random = 0
@@ -44,10 +44,10 @@ def run_benchmark(n_containers=50):
         yard_random.place_container(slot, c)
     
     end_random = time.time()
-    final_rehandles_random = _count_rehandle_pairs(yard_random)
+    final_rehandles_random = _count_yard_violations(yard_random)
 
     # 3. TEST B : Placement avec Optimisation (Simulated Annealing)
-    yard_opt = generate_yard(blocks=4, rows=10, max_height=4)
+    yard_opt = generate_yard(blocks=4, bays=10, rows=3, max_height=4)
     start_opt = time.time()
     total_score_opt = 0
     
@@ -64,7 +64,7 @@ def run_benchmark(n_containers=50):
         yard_opt.place_container(slot, c)
     
     end_opt = time.time()
-    final_rehandles_opt = _count_rehandle_pairs(yard_opt)
+    final_rehandles_opt = _count_yard_violations(yard_opt)
 
     # 4. RÉSULTATS
     print("\nRÉSULTATS COMPARATIFS :")

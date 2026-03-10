@@ -29,8 +29,8 @@ async def lifespan(app: FastAPI):
     """
     print("🚀 Démarrage de l'API Marsa Maroc Yard Optimization")
     
-    # Création du yard initial (4 blocs, 10 rangées, max 4 conteneurs de haut)
-    app.state.yard = generate_yard(blocks=4, rows=10, max_height=4)
+    # Création du yard initial (4 blocs, 10 bays, 3 rows, max 4 conteneurs de haut)
+    app.state.yard = generate_yard(blocks=4, bays=10, rows=3, max_height=4)
     
     # Registre des conteneurs pour garder la trace de ce qui est dans le yard
     # (En production, ce serait une base de données)

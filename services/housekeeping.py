@@ -37,7 +37,7 @@ from models.yard import Slot, Stack, Yard
 # Types
 # ---------------------------------------------------------------------------
 
-Move = Tuple[str, int, str, int]   # (src_block, src_row, dst_block, dst_row)
+Move = Tuple[str, int, int, str, int, int]   # (src_block, src_bay, src_row, dst_block, dst_bay, dst_row)
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ def _generate_candidate_moves(yard: Yard) -> List[Move]:
     moves: List[Move] = []
 
     for src_block_id, src_block in yard.blocks.items():
-        for src_row, src_stack in src_block.stacks.items():
+        for (src_bay, src_row), src_stack in src_block.stacks.items():
             if src_stack.current_height == 0:
                 continue  # pile vide, rien à déplacer
 
@@ -160,9 +160,9 @@ def _generate_candidate_moves(yard: Yard) -> List[Move]:
                 if container_size == 40 and dst_block_id not in ('C', 'D'):
                     continue
 
-                for dst_row, dst_stack in dst_block.stacks.items():
+                for (dst_bay, dst_row), dst_stack in dst_block.stacks.items():
                     # Pas la même pile
-                    if dst_block_id == src_block_id and dst_row == src_row:
+                    if dst_block_id == src_block_id and dst_bay == src_bay and dst_row == src_row:
                         continue
                     # Pas pleine
                     if dst_stack.is_full:
@@ -172,7 +172,7 @@ def _generate_candidate_moves(yard: Yard) -> List[Move]:
                     if dst_sizes and container_size not in dst_sizes:
                         continue
 
-                    moves.append((src_block_id, src_row, dst_block_id, dst_row))
+                    moves.append((src_block_id, src_bay, src_row, dst_block_id, dst_bay, dst_row))
 
     return moves
 
@@ -187,10 +187,10 @@ def _apply_move(yard: Yard, move: Move) -> bool:
     
     Returns True si le mouvement a été effectué, False sinon.
     """
-    src_block_id, src_row, dst_block_id, dst_row = move
+    src_block_id, src_bay, src_row, dst_block_id, dst_bay, dst_row = move
 
-    src_stack = yard.get_stack(src_block_id, src_row)
-    dst_stack = yard.get_stack(dst_block_id, dst_row)
+    src_stack = yard.get_stack(src_block_id, src_bay, src_row)
+    dst_stack = yard.get_stack(dst_block_id, dst_bay, dst_row)
     if src_stack is None or dst_stack is None:
         return False
 
@@ -217,10 +217,10 @@ def _apply_move(yard: Yard, move: Move) -> bool:
 
 def _undo_move(yard: Yard, move: Move, container_id: str) -> None:
     """Annule un mouvement précédent (utilisé pour évaluation sans commit)."""
-    src_block_id, src_row, dst_block_id, dst_row = move
+    src_block_id, src_bay, src_row, dst_block_id, dst_bay, dst_row = move
 
-    dst_stack = yard.get_stack(dst_block_id, dst_row)
-    src_stack = yard.get_stack(src_block_id, src_row)
+    dst_stack = yard.get_stack(dst_block_id, dst_bay, dst_row)
+    src_stack = yard.get_stack(src_block_id, src_bay, src_row)
     if dst_stack is None or src_stack is None:
         return
 
@@ -295,7 +295,7 @@ def run_tabu_search_housekeeping(
             sample = random.sample(candidates, min(50, len(candidates)))
 
             for move in sample:
-                src_stack = yard.get_stack(move[0], move[1])
+                src_stack = yard.get_stack(move[0], move[1], move[2])
                 if not src_stack: continue
                 
                 # Trouver l'ID du conteneur top

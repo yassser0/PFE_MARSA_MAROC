@@ -129,18 +129,20 @@ def _compute_distance_score(slot: Slot, yard: Yard) -> float:
     # Index du bloc (A=0, B=1, C=2, ...)
     block_index = ord(slot.block_id) - ord('A')
 
-    # Distance normalisée : combinaison bloc + rangée
+    # Distance normalisée : combinaison bloc + bay + rangée
     max_block_idx = yard.n_blocks - 1
+    max_bay_idx = yard.n_bays - 1
     max_row_idx = yard.n_rows - 1
 
-    if max_block_idx == 0 and max_row_idx == 0:
+    if max_block_idx == 0 and max_bay_idx == 0 and max_row_idx == 0:
         return 0.0
 
     block_dist = block_index / max_block_idx if max_block_idx > 0 else 0.0
+    bay_dist = (slot.bay - 1) / max_bay_idx if max_bay_idx > 0 else 0.0
     row_dist = (slot.row - 1) / max_row_idx if max_row_idx > 0 else 0.0
 
-    # Pondération : le bloc a plus d'impact que la rangée sur la distance réelle
-    return 0.6 * block_dist + 0.4 * row_dist
+    # Pondération : bloc (50%), bay/longitudinal (30%), row/transversal (20%)
+    return 0.5 * block_dist + 0.3 * bay_dist + 0.2 * row_dist
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +184,9 @@ def calculate_score(slot: Slot, container: Container, yard: Yard) -> float:
     if block is None:
         raise ValueError(f"Bloc inconnu : {slot.block_id!r}")
 
-    stack = block.stacks.get(slot.row)
+    stack = block.stacks.get((slot.bay, slot.row))
     if stack is None:
-        raise ValueError(f"Rangée inconnue : {slot.row} dans bloc {slot.block_id!r}")
+        raise ValueError(f"Pile inconnue : B{slot.bay}, R{slot.row} dans bloc {slot.block_id!r}")
 
     # --- Pénalité de poids (instabilité) ---
     # Un conteneur plus lourd que celui du dessous est physiquement instable.
@@ -232,7 +234,7 @@ def score_breakdown(slot: Slot, container: Container, yard: Yard) -> dict:
     dict avec les clés : rehandle_score, height_score, distance_score, total
     """
     block = yard.blocks.get(slot.block_id)
-    stack = block.stacks.get(slot.row) if block else None
+    stack = block.stacks.get((slot.bay, slot.row)) if block else None
 
     rehandles = (
         _estimate_rehandles(stack, slot.tier, container, yard)

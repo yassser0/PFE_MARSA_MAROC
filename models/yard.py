@@ -33,13 +33,15 @@ class Slot:
     """
     Représente un emplacement physique dans le parc.
 
-    Coordonnées 3D : (block_id, row, tier)
+    Coordonnées 3D : (block_id, bay, row, tier)
     - block_id  : identifiant du bloc (ex. 'A', 'B', ...)
-    - row       : numéro de rangée dans le bloc (commence à 1)
+    - bay       : numéro de travée (longitudinal)
+    - row       : numéro de rangée (transversal)
     - tier      : niveau de hauteur (1 = sol, max = max_height)
     - container_id : identifiant du conteneur présent, None si libre
     """
     block_id: str
+    bay: int
     row: int
     tier: int
     container_id: Optional[str] = None
@@ -52,11 +54,11 @@ class Slot:
     @property
     def position_key(self) -> str:
         """Clé unique représentant la position 3D."""
-        return f"{self.block_id}-R{self.row:02d}-T{self.tier}"
+        return f"{self.block_id}-B{self.bay:02d}-R{self.row}-T{self.tier}"
 
     def __repr__(self) -> str:
         status = "libre" if self.is_free else f"CNTR:{self.container_id}"
-        return f"Slot({self.block_id}, row={self.row}, tier={self.tier}, {status})"
+        return f"Slot({self.block_id}, B{self.bay}, R{self.row}, T{self.tier}, {status})"
 
 
 # ---------------------------------------------------------------------------
@@ -66,12 +68,13 @@ class Slot:
 @dataclass
 class Stack:
     """
-    Colonne verticale d'emplacements (même block et même row).
+    Colonne verticale d'emplacements (même block, bay et row).
 
     Contient max_height slots empilés verticalement.
     Le tier 1 est le sol, tier max_height est le sommet.
     """
     block_id: str
+    bay: int
     row: int
     max_height: int
     slots: List[Slot] = field(default_factory=list)
@@ -80,7 +83,7 @@ class Stack:
         """Initialise les slots vides si la liste n'est pas fournie."""
         if not self.slots:
             self.slots = [
-                Slot(block_id=self.block_id, row=self.row, tier=t)
+                Slot(block_id=self.block_id, bay=self.bay, row=self.row, tier=t)
                 for t in range(1, self.max_height + 1)
             ]
 
@@ -129,7 +132,7 @@ class Stack:
 
     def __repr__(self) -> str:
         return (
-            f"Stack({self.block_id}, row={self.row}, "
+            f"Stack({self.block_id}, B{self.bay}, R{self.row}, "
             f"height={self.current_height}/{self.max_height})"
         )
 
@@ -141,40 +144,42 @@ class Stack:
 @dataclass
 class Block:
     """
-    Zone physique du parc regroupant plusieurs rangées (stacks).
+    Zone physique du parc regroupant une grille de piles (bays × rows).
 
-    Chaque block contient n_rows stacks identifiés par leur numéro de rangée.
+    Chaque block contient n_bays * n_rows stacks.
     """
     block_id: str
+    n_bays: int
     n_rows: int
     max_height: int
-    stacks: Dict[int, Stack] = field(default_factory=dict)
+    stacks: Dict[Tuple[int, int], Stack] = field(default_factory=dict)
     
     # Propriétés spatiales (pour le layout dynamique)
     x: float = 0.0          # Position X dans le terminal (mètres)
     y: float = 0.0          # Position Y dans le terminal (mètres)
-    width: float = 20.0     # Largeur du bloc (mètres)
-    length: float = 50.0    # Longueur du bloc (mètres)
+    width: float = 10.0     # Largeur du bloc (mètres, transversal)
+    length: float = 50.0    # Longueur du bloc (mètres, longitudinal)
     rotation: float = 0.0   # Rotation en degrés
 
     def __post_init__(self) -> None:
-        """Initialise les stacks si non fournis."""
+        """Initialise la grille de stacks si non fournis."""
         if not self.stacks:
-            self.stacks = {
-                row: Stack(block_id=self.block_id, row=row, max_height=self.max_height)
-                for row in range(1, self.n_rows + 1)
-            }
+            for b in range(1, self.n_bays + 1):
+                for r in range(1, self.n_rows + 1):
+                    self.stacks[(b, r)] = Stack(
+                        block_id=self.block_id, bay=b, row=r, max_height=self.max_height
+                    )
 
     @property
     def occupancy(self) -> float:
         """Taux d'occupation du bloc (0.0 à 1.0)."""
-        total = self.n_rows * self.max_height
+        total = self.n_bays * self.n_rows * self.max_height
         used = sum(s.current_height for s in self.stacks.values())
         return used / total if total > 0 else 0.0
 
     def __repr__(self) -> str:
         return (
-            f"Block({self.block_id!r}, rows={self.n_rows}, "
+            f"Block({self.block_id!r}, bays={self.n_bays}, rows={self.n_rows}, "
             f"occupancy={self.occupancy:.1%})"
         )
 
@@ -188,16 +193,18 @@ class Yard:
     """
     Représentation complète du parc à conteneurs (Container Yard).
 
-    Structure 3D : blocks × rows × tiers
+    Structure 3D : blocks × bays × rows × tiers
 
     Attributs
     ----------
     n_blocks    : nombre de blocs
+    n_bays      : nombre de travées par bloc
     n_rows      : nombre de rangées par bloc
     max_height  : hauteur maximale des piles
     blocks      : dictionnaire {block_id → Block}
     """
     n_blocks: int
+    n_bays: int
     n_rows: int
     max_height: int
     blocks: Dict[str, Block] = field(default_factory=dict)
@@ -210,6 +217,7 @@ class Yard:
                 block_id = chr(ord('A') + i)  # A, B, C, D, ...
                 self.blocks[block_id] = Block(
                     block_id=block_id,
+                    n_bays=self.n_bays,
                     n_rows=self.n_rows,
                     max_height=self.max_height,
                 )
@@ -221,7 +229,7 @@ class Yard:
     @property
     def total_capacity(self) -> int:
         """Capacité totale du yard en nombre de slots."""
-        return self.n_blocks * self.n_rows * self.max_height
+        return self.n_blocks * self.n_bays * self.n_rows * self.max_height
 
     @property
     def used_slots(self) -> int:
@@ -260,7 +268,7 @@ class Yard:
         block = self.blocks.get(slot.block_id)
         if block is None:
             return False
-        stack = block.stacks.get(slot.row)
+        stack = block.stacks.get((slot.bay, slot.row))
         if stack is None:
             return False
         target_slot = stack.slots[slot.tier - 1]  # tiers indexés à 1
@@ -280,7 +288,7 @@ class Yard:
         block = self.blocks.get(slot.block_id)
         if block is None:
             return None
-        stack = block.stacks.get(slot.row)
+        stack = block.stacks.get((slot.bay, slot.row))
         if stack is None:
             return None
         target_slot = stack.slots[slot.tier - 1]
@@ -304,14 +312,14 @@ class Yard:
         """Retourne la liste des slots libres."""
         return [s for s in self.get_all_slots() if s.is_free]
 
-    def get_stack(self, block_id: str, row: int) -> Optional[Stack]:
+    def get_stack(self, block_id: str, bay: int, row: int) -> Optional[Stack]:
         """Accès direct à une pile par ses coordonnées."""
         block = self.blocks.get(block_id)
-        return block.stacks.get(row) if block else None
+        return block.stacks.get((bay, row)) if block else None
 
     def __repr__(self) -> str:
         return (
-            f"Yard(blocks={self.n_blocks}, rows={self.n_rows}, "
+            f"Yard(blocks={self.n_blocks}, bays={self.n_bays}, rows={self.n_rows}, "
             f"max_height={self.max_height}, "
             f"occupancy={self.occupancy_rate:.1%})"
         )

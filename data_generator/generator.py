@@ -191,7 +191,8 @@ def generate_containers(n: int) -> List[Container]:
 
 def generate_yard(
     blocks: int = 4,
-    rows: int = 10,
+    bays: int = 10,
+    rows: int = 3,
     max_height: int = 4,
 ) -> Yard:
     """
@@ -232,15 +233,16 @@ def generate_yard(
 
     yard = Yard(
         n_blocks=blocks,
+        n_bays=bays,
         n_rows=rows,
         max_height=max_height,
     )
     
-    # Configuration spatiale réajustée (Proportions visuelles optimisées)
-    block_width = 3.0      # Largeur d'un bloc (pour contenir 1 pile + un peu de marge)
-    block_length = rows * 1.1 # Longueur basée sur le nombre de conteneurs (~1.1m par slot)
-    spacing_x = 8.0        # Espace horizontal entre colonnes
-    spacing_y = 5.0        # Espace vertical entre blocs
+    # Configuration spatiale réajustée (Proportions visuelles optimisées pour 3 rangées de large)
+    block_width = rows * 2.5    # Largeur basée sur le nombre de rangées (2.5m par row pour laisser de l'espace)
+    block_length = bays * 1.5   # Longueur basée sur le nombre de travées (~1.5m par bay)
+    spacing_x = 15.0            # Espace horizontal entre colonnes de blocs
+    spacing_y = 10.0            # Espace vertical entre blocs
     
     for i, (block_id, block) in enumerate(yard.blocks.items()):
         # Layout en 2 colonnes principales

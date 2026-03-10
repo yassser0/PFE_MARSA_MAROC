@@ -74,51 +74,49 @@ def get_valid_slots(
         if allowed_blocks and block_id not in allowed_blocks:
             continue
             
-        for stack in block.stacks.values():
+        for b in range(1, block.n_bays + 1):
+            for r in range(1, block.n_rows + 1):
+                stack = block.stacks.get((b, r))
+                if stack is None:
+                    continue
 
-            next_slot = stack.top_free_slot
-            if next_slot is None:
-                continue  # pile pleine
+                next_slot = stack.top_free_slot
+                if next_slot is None:
+                    continue  # pile pleine
 
-            if next_slot.tier != stack.current_height + 1:
-                continue
+                if next_slot.tier != stack.current_height + 1:
+                    continue
 
-            # --- Règle d'homogénéité de taille ---
-            # Une pile ne doit contenir que des conteneurs de la même taille.
-            # Si la pile n'est pas vide, vérifier que la taille correspond.
-            if stack.current_height > 0:
-                existing_sizes = stack.get_container_sizes(yard.containers_registry)
-                if existing_sizes and container.size not in existing_sizes:
-                    continue  # La pile contient déjà une autre taille
+                # --- Règle d'homogénéité de taille ---
+                if stack.current_height > 0:
+                    existing_sizes = stack.get_container_sizes(yard.containers_registry)
+                    if existing_sizes and container.size not in existing_sizes:
+                        continue 
 
+                # --- Règle EDD ---
+                if strict_edd:
+                    edd_violation = False
+                    for below_slot in stack.slots:
+                        if below_slot.tier >= next_slot.tier:
+                            break
+                        if not below_slot.container_id:
+                            continue
+                        below_container = yard.containers_registry.get(below_slot.container_id)
+                        if below_container and container.departure_time > below_container.departure_time:
+                            edd_violation = True
+                            break
+                    if edd_violation:
+                        continue 
 
-            # --- Règle EDD (Earliest Departure Date) ---
-            # Appliquée uniquement en mode strict pour éviter les rehandles.
-            # En mode dégradé (strict_edd=False), le scorer pénalise à la place.
-            if strict_edd:
-                edd_violation = False
-                for below_slot in stack.slots:
-                    if below_slot.tier >= next_slot.tier:
-                        break
-                    if not below_slot.container_id:
-                        continue
-                    below_container = yard.containers_registry.get(below_slot.container_id)
-                    if below_container and container.departure_time > below_container.departure_time:
-                        edd_violation = True
-                        break
-                if edd_violation:
-                    continue  # Rejeté en mode strict
+                # --- Règle de Stabilité ---
+                if strict_weight and next_slot.tier > 1:
+                    below_slot = stack.slots[next_slot.tier - 2]
+                    if below_slot.container_id:
+                        below_container = yard.containers_registry.get(below_slot.container_id)
+                        if below_container and container.weight > below_container.weight:
+                            continue 
 
-            # --- Règle de Stabilité (Poids) ---
-            # Un conteneur lourd ne doit pas être sur un plus léger.
-            if strict_weight and next_slot.tier > 1:
-                below_slot = stack.slots[next_slot.tier - 2]
-                if below_slot.container_id:
-                    below_container = yard.containers_registry.get(below_slot.container_id)
-                    if below_container and container.weight > below_container.weight:
-                        continue  # Rejeté car instable
-
-            valid_slots.append(next_slot)
+                valid_slots.append(next_slot)
 
     return valid_slots
 
@@ -340,6 +338,7 @@ def placement_report(
         best_slot, best_score = best_result
         report["best_slot"] = {
             "block": best_slot.block_id,
+            "bay": best_slot.bay,
             "row": best_slot.row,
             "tier": best_slot.tier,
             "position_key": best_slot.position_key,

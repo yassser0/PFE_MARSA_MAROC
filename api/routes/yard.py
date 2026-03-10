@@ -39,6 +39,7 @@ class SlotInfo(BaseModel):
 
 class StackInfo(BaseModel):
     """État d'une pile (stack)."""
+    bay: int
     row: int
     current_height: int
     max_height: int
@@ -63,6 +64,7 @@ class BlockInfo(BaseModel):
 class YardStateResponse(BaseModel):
     """État complet du yard."""
     n_blocks: int
+    n_bays: int
     n_rows: int
     max_height: int
     total_capacity: int
@@ -74,6 +76,7 @@ class YardStateResponse(BaseModel):
 class YardInitRequest(BaseModel):
     """Requête d'initialisation du yard."""
     blocks: int
+    bays: int
     rows: int
     max_height: int
 
@@ -103,7 +106,7 @@ async def get_yard_state():
     blocks_info: List[BlockInfo] = []
     for block_id, block in yard.blocks.items():
         stacks_info: List[StackInfo] = []
-        for row, stack in block.stacks.items():
+        for (bay, row), stack in block.stacks.items():
             slots_info = []
             for s in stack.slots:
                 details = None
@@ -127,6 +130,7 @@ async def get_yard_state():
             
             stacks_info.append(
                 StackInfo(
+                    bay=bay,
                     row=row,
                     current_height=stack.current_height,
                     max_height=stack.max_height,
@@ -150,6 +154,7 @@ async def get_yard_state():
 
     return YardStateResponse(
         n_blocks=yard.n_blocks,
+        n_bays=yard.n_bays,
         n_rows=yard.n_rows,
         max_height=yard.max_height,
         total_capacity=yard.total_capacity,
@@ -172,6 +177,7 @@ async def init_yard(request: YardInitRequest):
     # Générer un nouveau yard
     nouveau_yard = generate_yard(
         blocks=request.blocks, 
+        bays=request.bays,
         rows=request.rows, 
         max_height=request.max_height
     )
