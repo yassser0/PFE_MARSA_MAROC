@@ -213,6 +213,16 @@ if st.sidebar.button("▶ Lancer le Tabu Search pour Réorganise le yard", use_c
             except requests.exceptions.ConnectionError:
                 st.error("🚨 API non accessible.")
 
+# --- Recherche de Conteneur ---
+st.sidebar.header("🔍 Recherche de Conteneur")
+search_input = st.sidebar.text_input("ID ou Localisation (ex: A-B01-R1-T1)", key="search_input")
+
+if search_input:
+    # On stocke la recherche dans le session_state pour que la vue 3D puisse l'utiliser
+    st.session_state.search_query = search_input.strip().upper()
+else:
+    st.session_state.search_query = None
+
 st.sidebar.divider()
 
 st.sidebar.header(" Nouveau Conteneur")
@@ -382,6 +392,7 @@ if yard_data:
 
                 x_norm, y_norm, z_norm, text_norm = [], [], [], []
                 x_last, y_last, z_last, text_last = [], [], [], []
+                x_search, y_search, z_search, text_search = [], [], [], []
                 
                 for stack in block['stacks']:
                     for s in stack.get('slots', []):
@@ -397,7 +408,13 @@ if yard_data:
                             
                             is_recent = last_placed and last_placed['block'] == block['block_id'] and last_placed['bay'] == stack['bay'] and last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']
                             
-                            if is_recent:
+                            content = s.get('container_id', '')
+                            loc_str = details.get('location', '') if details else ""
+                            is_match = st.session_state.search_query and (st.session_state.search_query == content or st.session_state.search_query == loc_str)
+                            
+                            if is_match:
+                                x_search.append(row_x_offset); y_search.append(bay_y_offset); z_search.append(tier_idx); text_search.append(hover)
+                            elif is_recent:
                                 x_last.append(row_x_offset); y_last.append(bay_y_offset); z_last.append(tier_idx); text_last.append(hover)
                             else:
                                 x_norm.append(row_x_offset); y_norm.append(bay_y_offset); z_norm.append(tier_idx); text_norm.append(hover)
@@ -405,6 +422,8 @@ if yard_data:
                 add_cube_trace(fig_global, x_norm, y_norm, z_norm, color='#2ca02c', name=f'B-{block["block_id"]}', hover_texts=text_norm, offset=(bx, by))
                 if x_last:
                     add_cube_trace(fig_global, x_last, y_last, z_last, color='#d62728', name='Nouveau', hover_texts=text_last, offset=(bx, by))
+                if x_search:
+                    add_cube_trace(fig_global, x_search, y_search, z_search, color='#00fdff', name='Trouvé', hover_texts=text_search, offset=(bx, by))
 
             fig_global.update_layout(
                 clickmode='event+select',
@@ -453,18 +472,27 @@ if yard_data:
             if block_data:
                 fig_detail = go.Figure()
                 x_d, y_d, z_d, t_d = [], [], [], []
+                xs, ys, zs, ts = [], [], [], [] # for searched
                 for stack in block_data['stacks']:
                     for s in stack['slots']:
                         if not s['is_free']:
-                            x_d.append((stack['row']-1) * 2.5); y_d.append((stack['bay']-1) * 1.5); z_d.append(s['tier']-1)
+                            tier_idx = s['tier'] - 1
                             details = s.get('container_details')
                             hover = f"<b>{s['container_id']}</b>"
                             if details:
-                                hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
-                            t_d.append(hover)
+                                hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}<br>Localisation: {details.get('location')}"
+                            
+                            is_match = st.session_state.search_query and (st.session_state.search_query == s.get('container_id') or (details and st.session_state.search_query == details.get('location')))
+                            
+                            if is_match:
+                                xs.append((stack['row']-1) * 2.5); ys.append((stack['bay']-1) * 1.5); zs.append(tier_idx); ts.append(hover)
+                            else:
+                                x_d.append((stack['row']-1) * 2.5); y_d.append((stack['bay']-1) * 1.5); z_d.append(tier_idx); t_d.append(hover)
                 
-                add_cube_trace(fig_detail, x_d, y_d, z_d, color='#2ca02c', name='Stack', hover_texts=t_d)
-                
+                add_cube_trace(fig_detail, x_d, y_d, z_d, color='#2ca02c', name='Piles', hover_texts=t_d)
+                if xs:
+                    add_cube_trace(fig_detail, xs, ys, zs, color='#00fdff', name='Résultat', hover_texts=ts)
+
                 max_b = yard_data['n_bays']
                 max_r = yard_data['n_rows']
                 fig_detail.update_layout(
