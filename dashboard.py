@@ -391,9 +391,9 @@ if yard_data:
                             bay_y_offset = (stack['bay'] - 1) * 1.5
                             
                             details = s.get('container_details')
-                            hover = f"<b>{s['container_id']}</b><br>Bloc {block['block_id']}, B{stack['bay']}, R{stack['row']}, T{s['tier']}"
+                            hover = f"<b>{s['container_id']}</b>"
                             if details:
-                                hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
+                                hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}<br>Localisation: {details.get('location')}"
                             
                             is_recent = last_placed and last_placed['block'] == block['block_id'] and last_placed['bay'] == stack['bay'] and last_placed['row'] == stack['row'] and last_placed['tier'] == s['tier']
                             
@@ -458,7 +458,7 @@ if yard_data:
                         if not s['is_free']:
                             x_d.append((stack['row']-1) * 2.5); y_d.append((stack['bay']-1) * 1.5); z_d.append(s['tier']-1)
                             details = s.get('container_details')
-                            hover = f"<b>{s['container_id']}</b><br>Bloc {st.session_state.selected_block}, B{stack['bay']}, R{stack['row']}, T{s['tier']}"
+                            hover = f"<b>{s['container_id']}</b>"
                             if details:
                                 hover += f"<br>Type: {details.get('type')}<br>Taille: {details.get('size')}ft<br>Poids: {details.get('weight')}t<br>Départ: {details.get('departure_time')}"
                             t_d.append(hover)
