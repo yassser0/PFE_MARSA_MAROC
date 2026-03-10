@@ -14,8 +14,8 @@ const Block = ({ block, maxHeight, onSelectContainer, onSelectBlock, isDetailVie
             onClick={(e) => { e.stopPropagation(); if (onSelectBlock) onSelectBlock(block_id); }}
         >
             {/* Block Ground Slab - Dynamic width for spacing */}
-            <mesh position={[block.width, -0.05, block.length / 2]} receiveShadow>
-                <boxGeometry args={[block.width * 2, 0.1, block.length]} />
+            <mesh position={[block.width * 1.4, -0.05, block.length * 1.2 / 2]} receiveShadow>
+                <boxGeometry args={[block.width * 3, 0.1, block.length * 1.5]} />
                 <meshStandardMaterial
                     color={hovered && !isDetailView ? "#4ade80" : "#222"}
                     opacity={hovered && !isDetailView ? 0.4 : 0.6}
@@ -38,7 +38,7 @@ const Block = ({ block, maxHeight, onSelectContainer, onSelectBlock, isDetailVie
             )}
 
             {stacks.map((stack) => (
-                <group key={`${block_id}-B${stack.bay}-R${stack.row}`} position={[(stack.row - 1) * 3.5, 0, (stack.bay - 1) * 1.5]}>
+                <group key={`${block_id}-B${stack.bay}-R${stack.row}`} position={[(stack.row - 1) * 4.5, 0, (stack.bay - 1) * 2.5]}>
                     {stack.slots.map((slot) => {
                         if (slot.is_free) return null;
                         return (

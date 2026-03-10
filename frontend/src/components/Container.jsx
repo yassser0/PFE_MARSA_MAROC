@@ -14,7 +14,7 @@ const Container = ({ slot, position, onSelect, searchQuery }) => {
     if (slot.container_details?.type === 'export') color = '#2c7fb8'; // Blue
     if (slot.container_details?.type === 'transshipment') color = '#e67e22'; // Orange-ish
 
-    if (isMatch) color = '#00fdff'; // Highlight color
+    if (isMatch) color = '#ff0000'; // Search match - RED
 
     return (
         <group position={position}>

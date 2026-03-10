@@ -45,65 +45,72 @@ const Yard3D = ({ data, onSelectContainer, onSelectBlock, isDetailView, searchQu
                     {/* Terminal Group - Rotated to match TC3 Photo */}
                     <group rotation={[0, -Math.PI / 6, 0]}>
                         <group position={[0, 0, 0]}>
-                            {data.blocks.map((block) => (
-                                <group key={block.block_id}>
-                                    <Block
-                                        block={block}
-                                        maxHeight={data.max_height}
-                                        onSelectContainer={onSelectContainer}
-                                        onSelectBlock={onSelectBlock}
-                                        isDetailView={isDetailView}
-                                        searchQuery={searchQuery}
-                                    />
-                                    {/* RTG Crane over each block */}
-                                    {(!isDetailView || data.blocks.length === 1) && (
-                                        <Crane
-                                            position={[block.x + block.width / 2 - 1.2, 0, block.y + block.length / 2]}
-                                            width={block.width + 10}
-                                            length={block.length}
+                            {data.blocks.map((block) => {
+                                // Add spacing between blocks artificially
+                                const spacingFactor = 2.0;
+                                const spacedX = block.x * spacingFactor;
+                                const spacedY = block.y * spacingFactor;
+
+                                return (
+                                    <group key={block.block_id}>
+                                        <Block
+                                            block={{ ...block, x: spacedX, y: spacedY }}
+                                            maxHeight={data.max_height}
+                                            onSelectContainer={onSelectContainer}
+                                            onSelectBlock={onSelectBlock}
+                                            isDetailView={isDetailView}
+                                            searchQuery={searchQuery}
                                         />
-                                    )}
-                                </group>
-                            ))}
+                                        {/* RTG Crane over each block */}
+                                        {(!isDetailView || data.blocks.length === 1) && (
+                                            <Crane
+                                                position={[spacedX + block.width / 2 - 1.2, 0, spacedY + block.length / 2]}
+                                                width={block.width * 2 + 10}
+                                                length={block.length * 1.5}
+                                            />
+                                        )}
+                                    </group>
+                                );
+                            })}
                         </group>
 
                         {/* Realistic Yard Foundation (Asphalt + Quay) */}
                         <group position={[11, 0, 15]}>
                             {/* Asphalt Surface */}
                             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-                                <planeGeometry args={[120, 150]} />
+                                <planeGeometry args={[250, 250]} />
                                 <meshStandardMaterial color="#111115" roughness={0.8} metalness={0.1} />
                             </mesh>
 
                             {/* Quay Wall (Transitions to water) */}
-                            <mesh position={[-60, -2.5, 0]} receiveShadow>
-                                <boxGeometry args={[0.5, 5, 150]} />
+                            <mesh position={[-120, -2.5, 0]} receiveShadow>
+                                <boxGeometry args={[0.5, 5, 250]} />
                                 <meshStandardMaterial color="#2c2c2c" />
                             </mesh>
 
                             {/* Ground Markings */}
                             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-                                <planeGeometry args={[115, 0.2]} />
+                                <planeGeometry args={[240, 0.2]} />
                                 <meshStandardMaterial color="#f1c40f" transparent opacity={0.4} />
                             </mesh>
-                            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 20]}>
-                                <planeGeometry args={[115, 0.2]} />
+                            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 40]}>
+                                <planeGeometry args={[240, 0.2]} />
                                 <meshStandardMaterial color="#f1c40f" transparent opacity={0.4} />
                             </mesh>
                         </group>
 
-                        {/* Visual Depth Grids */}
-                        <gridHelper args={[150, 30, "#222", "#111"]} position={[11, 0, 15]} rotation={[0, 0, 0]} />
+                        {/* Visual Depth Grids - Scaled up */}
+                        <gridHelper args={[300, 40, "#222", "#111"]} position={[11, 0, 15]} rotation={[0, 0, 0]} />
                     </group>
 
-                    {/* Water Surface - Deep and Reflective */}
+                    {/* Water Surface - Deep and Reflective - Scaled up */}
                     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -4.8, 0]} receiveShadow>
-                        <planeGeometry args={[1000, 1000]} />
+                        <planeGeometry args={[2000, 2000]} />
                         <meshStandardMaterial color="#001b2e" roughness={0.3} metalness={0.9} />
                     </mesh>
 
-                    {/* Lighting Poles for Grounding */}
-                    {[[-40, 0, -20], [-40, 0, 50], [60, 0, -20], [60, 0, 50]].map((pos, i) => (
+                    {/* Lighting Poles for Grounding - Expanded Perimeter */}
+                    {[[-100, 0, -80], [-100, 0, 100], [120, 0, -80], [120, 0, 100]].map((pos, i) => (
                         <group key={i} position={pos}>
                             <mesh position={[0, 10, 0]}>
                                 <cylinderGeometry args={[0.2, 0.3, 20]} />
