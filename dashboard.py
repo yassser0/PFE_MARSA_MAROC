@@ -89,8 +89,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🚢 Marsa Maroc - Yard Intelligence")
-st.markdown("<p style='color: #8B949E; font-size: 1.1rem; margin-bottom: 30px;'>Système d'Optimisation et de Visualisation 3D du Terminal à Conteneurs</p>", unsafe_allow_html=True)
+st.title("Marsa Maroc - Yard Intelligence")
 
 # --- FETCH GLOBAL DATA EARLY FOR HEADER KPIS ---
 yard_data = None
@@ -169,7 +168,7 @@ if init_btn:
         except requests.exceptions.ConnectionError:
             st.sidebar.error("🚨 Impossible de se connecter à l'API.")
 
-if st.sidebar.button("🗑️ Vider le Yard & Actualiser", use_container_width=True, type="primary"):
+if st.sidebar.button("Vider le Yard & Actualiser", use_container_width=True, type="primary"):
     with st.spinner("Nettoyage en cours..."):
         try:
             requests.post(f"{API_URL}/yard/init", json={"blocks": 4, "bays": 10, "rows": 3, "max_height": 4})
@@ -351,15 +350,14 @@ if yard_data:
         st.write("") # Petit espacement
 
         if st.session_state.active_tab == "Vue Globale 3D":
-            st.markdown("### 🗺️ Carte Globale Interactive")
-            st.caption("Visualisation du TC3 (Terminal à Conteneurs 3). Survolez les conteneurs pour les détails.")
+            st.markdown("### Visualisation du TC3")
+            
             
             # Déplacement de la Navigation Rapide au-dessus de la carte pour une meilleure accessibilité UX
-            st.markdown("##### 📌 Accélération vers un secteur")
             cols = st.columns(len(yard_data['blocks']))
             for i, block in enumerate(yard_data['blocks']):
                 with cols[i]:
-                    if st.button(f"🔍 Inspecter {block['block_id']}", use_container_width=True, key=f"nav_btn_{block['block_id']}"):
+                    if st.button(f"Inspecter block {block['block_id']}", use_container_width=True, key=f"nav_btn_{block['block_id']}"):
                         st.session_state.selected_block = block['block_id']
                         st.session_state.active_tab = "Vue Détail Bloc"
                         st.rerun()

@@ -9,7 +9,7 @@ API_URL = "http://127.0.0.1:8000"
 ENDPOINT = f"{API_URL}/containers/place_batch"
 
 # Configuration de la pipeline
-TOTAL_CONTAINERS = 1000 # Nombre total de conteneurs à envoyer en un seul bloc
+TOTAL_CONTAINERS = 480 # Nombre total de conteneurs à envoyer en un seul bloc
 DELAY_DAYS_MIN = 1      # Jours min avant départ
 DELAY_DAYS_MAX = 30     # Jours max avant départ
 
