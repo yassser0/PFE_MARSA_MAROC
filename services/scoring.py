@@ -223,33 +223,3 @@ def calculate_score(slot: Slot, container: Container, yard: Yard) -> float:
     return round(total_score, 4)
 
 
-def score_breakdown(slot: Slot, container: Container, yard: Yard) -> dict:
-    """
-    Retourne le détail du score pour la transparence algorithmique.
-
-    Utile pour l'analyse académique et le débogage.
-
-    Returns
-    -------
-    dict avec les clés : rehandle_score, height_score, distance_score, total
-    """
-    block = yard.blocks.get(slot.block_id)
-    stack = block.stacks.get((slot.bay, slot.row)) if block else None
-
-    rehandles = (
-        _estimate_rehandles(stack, slot.tier, container, yard)
-        if stack else 0
-    )
-    distance = _compute_distance_score(slot, yard)
-
-    return {
-        "rehandle_score": round(WEIGHT_REHANDLES * rehandles, 4),
-        "height_score": round(WEIGHT_HEIGHT * (slot.tier - 1), 4),
-        "distance_score": round(WEIGHT_DISTANCE * distance, 4),
-        "total": round(
-            WEIGHT_REHANDLES * rehandles
-            + WEIGHT_HEIGHT * (slot.tier - 1)
-            + WEIGHT_DISTANCE * distance,
-            4,
-        ),
-    }

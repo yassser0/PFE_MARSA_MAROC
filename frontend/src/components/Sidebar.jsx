@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import './Sidebar.css';
 import client from '../api/client';
 import { Settings, PlusSquare, Play, Trash2, Info, X } from 'lucide-react';
-import ContainerForm from './ContainerForm';
-
 const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection, searchQuery, setSearchQuery }) => {
     const [config, setConfig] = useState({ blocks: 4, bays: 10, rows: 3, height: 4 });
     const [loading, setLoading] = useState(false);
@@ -134,10 +132,7 @@ const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection, sear
                         </div>
                     </div>
 
-                    <div className="sidebar-section">
-                        <h3 className="section-title"><PlusSquare size={18} /> Placement</h3>
-                        <ContainerForm onPlaced={onUpdate} />
-                    </div>
+
 
                     <div className="sidebar-section">
                         <h3 className="section-title"><Play size={18} /> Housekeeping</h3>

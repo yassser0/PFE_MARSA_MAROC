@@ -219,66 +219,7 @@ if search_input:
 else:
     st.session_state.search_query = None
 
-st.sidebar.divider()
 
-st.sidebar.header(" Nouveau Conteneur")
-with st.sidebar.form("placement_form"):
-    # Définition des zones dédiées
-    st.markdown("**Zones Dédiées (Optionnel)**")
-    
-    zones_20ft = st.multiselect("Blocs 20ft", options=["A", "B", "C", "D"], default=["A", "B"])
-    zones_40ft = st.multiselect("Blocs 40ft", options=["A", "B", "C", "D"], default=["C", "D"])
-    
-    c_size = st.selectbox("Taille (EVP)", options=[20, 40])
-    c_weight = st.slider("Poids (Tonnes)", min_value=5.0, max_value=30.0, value=15.0, step=0.5)
-    c_type = st.selectbox("Type", options=["import", "export", "transshipment"])
-    
-    # Date de départ par défaut : dans 7 jours
-    default_date = datetime.now() + timedelta(days=7)
-    c_date = st.date_input("Date prévue de départ", value=default_date)
-    c_time = st.time_input("Heure", value=datetime.strptime("10:00", "%H:%M").time())
-    
-    submit = st.form_submit_button("Trouver le meilleur emplacement")
-
-if submit:
-    departure_dt = datetime.combine(c_date, c_time).isoformat()
-    payload = {
-        "size": c_size,
-        "weight": c_weight,
-        "type": c_type,
-        "departure_time": departure_dt,
-        "zones_20ft": zones_20ft if c_size == 20 else [],
-        "zones_40ft": zones_40ft if c_size == 40 else []
-    }
-    
-    with st.spinner("Analyse par le moteur d'optimisation..."):
-        try:
-            response = requests.post(f"{API_URL}/containers/place", json=payload)
-            if response.status_code == 200:
-                data = response.json()
-                st.session_state.last_placed = data['best_slot']
-                st.markdown(f"""
-                <div class="placement-success">
-                    <h4 style="margin: 0; color: #2ca02c;">✅ Conteneur {data['container_id']} placé avec succès !</h4>
-                    <p style="margin: 5px 0 0 0;">Bloc <b>{data['best_slot']['block']}</b> | Rangée <b>{data['best_slot']['row']}</b> | Niveau <b>{data['best_slot']['tier']}</b></p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Afficher les détails du placement
-                st.write("") # espacement
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Clé Position", data['best_slot']['position_key'])
-                col2.metric("Score Global", round(data['best_score'], 2))
-                
-                bd = data['score_breakdown']
-                col3.metric("Rehandles Estimés", int(bd['rehandle_score'] / 3.0))
-                
-                with st.expander("📊 Détail Calcul Algorithmique"):
-                    st.json(bd)
-            else:
-                st.error(f"Erreur : {response.json().get('detail', 'Inconnue')}")
-        except requests.exceptions.ConnectionError:
-            st.error("🚨 Impossible de se connecter à l'API. Assurez-vous que `python main.py api` tourne en arrière-plan.")
 
 st.markdown("---")
 

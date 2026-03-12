@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Tuple
 
 from models.container import Container
 from models.yard import Slot, Stack, Yard
-from services.scoring import calculate_score, score_breakdown
+from services.scoring import calculate_score
 
 # Seuil au-delà duquel un emplacement n'est pas considéré optimal
 OPTIMALITY_THRESHOLD: float = 1.0
@@ -262,102 +262,3 @@ def find_best_slot(
     return simulated_annealing_optimization(container, yard, top_candidates, precomputed_scores=precomputed)
 
 
-# ---------------------------------------------------------------------------
-# Évaluation de l'optimalité d'un placement proposé
-# ---------------------------------------------------------------------------
-
-def is_placement_optimal(
-    proposed_slot: Slot,
-    container: Container,
-    yard: Yard,
-    threshold: float = OPTIMALITY_THRESHOLD,
-    allowed_blocks: Optional[List[str]] = None
-) -> Tuple[bool, str, float]:
-    """
-    Évalue si un emplacement proposé est proche de l'optimisation maximale trouvée.
-    """
-    valid_slots = get_valid_slots(container, yard, allowed_blocks)
-    valid_keys = {s.position_key for s in valid_slots}
-
-    if proposed_slot.position_key not in valid_keys:
-        return False, "Le slot proposé n'est pas valide (plein, inaccessible ou incompatible).", float('inf')
-
-    try:
-        proposed_score = calculate_score(proposed_slot, container, yard)
-    except ValueError:
-        return False, "Placement physiquement impossible (poids instable).", float('inf')
-
-    # Exécuter l'heuristique pour trouver le "meilleur" score estimé
-    best_result = find_best_slot(container, yard, allowed_blocks=allowed_blocks)
-    if best_result is None:
-        return False, "Aucun slot disponible dans le yard.", float('inf')
-
-    best_slot, best_score = best_result
-    score_gap = proposed_score - best_score
-
-    if score_gap <= threshold:
-        reason = (
-            f"Placement optimal ✓ — Score: {proposed_score:.2f} "
-            f"(meilleur trouvé par SA: {best_score:.2f}, écart: {score_gap:.2f})"
-        )
-        return True, reason, score_gap
-    else:
-        reason = (
-            f"Placement sous-optimal — Score: {proposed_score:.2f} "
-            f"(meilleur trouvé: {best_score:.2f} en {best_slot.position_key}, "
-            f"écart: {score_gap:.2f} > seuil {threshold})"
-        )
-        return False, reason, score_gap
-
-
-# ---------------------------------------------------------------------------
-# Rapport complet d'un placement
-# ---------------------------------------------------------------------------
-
-def placement_report(
-    container: Container,
-    yard: Yard,
-    proposed_slot: Optional[Slot] = None,
-    allowed_blocks: Optional[List[str]] = None
-) -> dict:
-    """
-    Génère un rapport de l'assignation du nouveau conteneur.
-    """
-    best_result = find_best_slot(container, yard, allowed_blocks=allowed_blocks)
-    valid_slots = get_valid_slots(container, yard, allowed_blocks=allowed_blocks)
-
-    report = {
-        "container_id": container.id,
-        "container_size": container.size,
-        "container_type": container.type.value,
-        "yard_occupancy": f"{yard.occupancy_rate:.1%}",
-        "available_slots_count": len(valid_slots),
-    }
-
-    if best_result:
-        best_slot, best_score = best_result
-        report["best_slot"] = {
-            "block": best_slot.block_id,
-            "bay": best_slot.bay,
-            "row": best_slot.row,
-            "tier": best_slot.tier,
-            "position_key": best_slot.position_key,
-        }
-        report["best_score"] = best_score
-        report["score_breakdown"] = score_breakdown(best_slot, container, yard)
-    else:
-        report["best_slot"] = None
-        report["best_score"] = None
-        report["score_breakdown"] = None
-        report["error"] = "Aucun slot disponible dans le yard."
-
-    if proposed_slot is not None:
-        is_opt, reason, gap = is_placement_optimal(proposed_slot, container, yard, allowed_blocks=allowed_blocks)
-        report["proposed_evaluation"] = {
-            "slot": proposed_slot.position_key,
-            "is_optimal": is_opt,
-            "reason": reason,
-            "score_gap": gap if not math.isinf(gap) else None,
-        }
-
-    return report
