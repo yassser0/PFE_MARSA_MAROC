@@ -18,22 +18,7 @@ const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection, sear
         }
     };
 
-    const handleHousekeeping = async () => {
-        setLoading(true);
-        try {
-            await client.post('/yard/housekeeping', {
-                max_iterations: 200,
-                tabu_tenure: 15,
-                max_no_improve: 50,
-            });
-            onUpdate();
-            alert('Housekeeping completed!');
-        } catch (err) {
-            alert('Failed to run housekeeping');
-        } finally {
-            setLoading(false);
-        }
-    };
+
 
     const handleClearYard = async () => {
         setLoading(true);
@@ -134,12 +119,7 @@ const Sidebar = ({ yardData, onUpdate, selectedContainer, onClearSelection, sear
 
 
 
-                    <div className="sidebar-section">
-                        <h3 className="section-title"><Play size={18} /> Housekeeping</h3>
-                        <button className="secondary-btn" onClick={handleHousekeeping} disabled={loading}>
-                            Lancer Tabu Search
-                        </button>
-                    </div>
+
                 </>
             )}
 

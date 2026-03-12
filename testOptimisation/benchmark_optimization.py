@@ -12,7 +12,23 @@ from models.container import Container
 from data_generator.generator import generate_containers, generate_yard
 from services.optimizer import find_best_slot, get_valid_slots
 from services.scoring import calculate_score
-from services.housekeeping import _count_yard_violations
+def _count_yard_violations(yard: Yard) -> int:
+    violations = 0
+    for block in yard.blocks.values():
+        for stack in block.stacks.values():
+            for i in range(stack.current_height):
+                slot_u = stack.slots[i]
+                if not slot_u.container_id: continue
+                c_u = yard.containers_registry.get(slot_u.container_id)
+                if not c_u: continue
+                # On compare avec tous les conteneurs placés au-dessus
+                for j in range(i + 1, stack.current_height):
+                    slot_above = stack.slots[j]
+                    if not slot_above.container_id: continue
+                    c_above = yard.containers_registry.get(slot_above.container_id)
+                    if c_above and c_above.departure_time > c_u.departure_time:
+                        violations += 1
+    return violations
 
 def run_benchmark(n_containers=50):
     print("="*60)

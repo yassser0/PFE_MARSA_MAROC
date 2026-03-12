@@ -179,35 +179,7 @@ if st.sidebar.button("Vider le Yard & Actualiser", use_container_width=True, typ
 st.sidebar.caption(f"Dernière actualisation : {datetime.now().strftime('%H:%M:%S')}")
 st.sidebar.divider()
 
-# --- Housekeeping (Tabu Search) ---
-st.sidebar.header("🔧 Housekeeping (Off-Peak)")
-st.sidebar.caption("Réorganise le yard pour éliminer les rehandles existants.")
 
-if st.sidebar.button("▶ Lancer le Tabu Search pour Réorganise le yard", use_container_width=True, type="primary"):
-    with st.sidebar:
-        with st.spinner("Tabu Search en cours..."):
-            try:
-                hk_resp = requests.post(f"{API_URL}/yard/housekeeping", json={
-                    "max_iterations": 200,
-                    "tabu_tenure": 15,
-                    "max_no_improve": 50,
-                })
-                if hk_resp.status_code == 200:
-                    hk = hk_resp.json()
-                    if hk["rehandles_reduced"] > 0:
-                        st.success(f"✅ {hk['rehandles_reduced']} rehandle(s) éliminé(s) en {hk['moves_made']} mouvements")
-                        col_a, col_b = st.columns(2)
-                        col_a.metric("Avant", hk["initial_rehandles"], delta=None)
-                        col_b.metric("Après", hk["final_rehandles"],
-                                     delta=f"-{hk['rehandles_reduced']}", delta_color="inverse")
-                        st.progress(hk["improvement_pct"] / 100,
-                                    text=f"Amélioration : {hk['improvement_pct']}%")
-                    else:
-                        st.info("✅ Yard déjà optimal — aucun rehandle détecté.")
-                else:
-                    st.error(f"Erreur API : {hk_resp.text}")
-            except requests.exceptions.ConnectionError:
-                st.error("🚨 API non accessible.")
 
 # --- Recherche de Conteneur ---
 st.sidebar.header("🔍 Recherche de Conteneur")
