@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from streamlit_autorefresh import st_autorefresh
+
 
 # Configuration de la page
 st.set_page_config(
@@ -13,12 +13,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Configuration du Mode Live (Auto-Refresh) ---
-# Si le mode live est activé, la page se recharge toutes les 2 secondes (2000 ms)
-live_mode = st.sidebar.checkbox("Activer le Streaming Live", value=False, help="Cochez pour voir les conteneurs s'empiler en direct.")
+# --- Configuration du Mode Performance ---
 perf_mode = st.sidebar.checkbox("Mode Performance 3D", value=False, help="Dessine des points légers au lieu de cubes complexes. Recommandé pour tester avec > 500 conteneurs.")
-if live_mode:
-    st_autorefresh(interval=2000, limit=None, key="data_streaming")
+
 
 
 # Constantes API
