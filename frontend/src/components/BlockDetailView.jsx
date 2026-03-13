@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import Plot from 'react-plotly.js'
 
-function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, perfMode = false) {
+function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, customDataList, perfMode = false) {
   if (!xCoords.length) return null
 
   if (perfMode) {
@@ -14,12 +14,13 @@ function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, per
       marker: { symbol: 'square', size: 10, color, opacity: 0.9 },
       name,
       text: hoverTexts,
+      customdata: customDataList,
       hoverinfo: hoverTexts.length ? 'text' : 'name',
     }
   }
 
   const dx = 0.8, dy = 1.3, dz = 0.9
-  const X = [], Y = [], Z = [], I = [], J = [], K = [], textExpanded = []
+  const X = [], Y = [], Z = [], I = [], J = [], K = [], textExpanded = [], customDataExpanded = []
 
   xCoords.forEach((x, idx) => {
     const y = yCoords[idx], z = zCoords[idx]
@@ -37,7 +38,11 @@ function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, per
     K.push(...k.map(v => v + base))
 
     const txt = hoverTexts[idx] || ''
-    for (let q = 0; q < 8; q++) textExpanded.push(txt)
+    const cd = customDataList[idx]
+    for (let q = 0; q < 8; q++) {
+      textExpanded.push(txt)
+      customDataExpanded.push(cd)
+    }
   })
 
   return {
@@ -49,11 +54,12 @@ function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, per
     name,
     showscale: false,
     text: textExpanded,
+    customdata: customDataExpanded,
     hoverinfo: hoverTexts.length ? 'text' : 'name',
   }
 }
 
-export default function BlockDetailView({ yardData, selectedBlock, onBlockChange, searchQuery, perfMode }) {
+export default function BlockDetailView({ yardData, selectedBlock, onBlockChange, searchQuery, perfMode, onSelectContainer }) {
   const blockIds = yardData.blocks.map(b => b.block_id)
   const blockData = yardData.blocks.find(b => b.block_id === selectedBlock)
 
@@ -61,8 +67,8 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
     if (!blockData) return []
     const result = []
 
-    const xNorm = [], yNorm = [], zNorm = [], tNorm = []
-    const xSearch = [], ySearch = [], zSearch = [], tSearch = []
+    const xNorm = [], yNorm = [], zNorm = [], tNorm = [], cNorm = []
+    const xSearch = [], ySearch = [], zSearch = [], tSearch = [], cSearch = []
 
     for (const stack of blockData.stacks) {
       for (const slot of (stack.slots || [])) {
@@ -81,22 +87,36 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
         const locStr = details?.location || ''
         const isMatch = searchQuery && (searchQuery === slot.container_id || searchQuery === locStr)
 
+        const containerData = {
+          id: slot.container_id,
+          ...details
+        }
+
         if (isMatch) {
-          xSearch.push(rowX); ySearch.push(bayY); zSearch.push(tierIdx); tSearch.push(hover)
+          xSearch.push(rowX); ySearch.push(bayY); zSearch.push(tierIdx); tSearch.push(hover); cSearch.push(containerData)
         } else {
-          xNorm.push(rowX); yNorm.push(bayY); zNorm.push(tierIdx); tNorm.push(hover)
+          xNorm.push(rowX); yNorm.push(bayY); zNorm.push(tierIdx); tNorm.push(hover); cNorm.push(containerData)
         }
       }
     }
 
-    const normTrace = buildCubeTraces(xNorm, yNorm, zNorm, '#2ca02c', 'Piles', tNorm, perfMode)
+    const normTrace = buildCubeTraces(xNorm, yNorm, zNorm, '#2ca02c', 'Piles', tNorm, cNorm, perfMode)
     if (normTrace) result.push(normTrace)
 
-    const searchTrace = buildCubeTraces(xSearch, ySearch, zSearch, '#00fdff', 'Résultat', tSearch, perfMode)
+    const searchTrace = buildCubeTraces(xSearch, ySearch, zSearch, '#00fdff', 'Résultat', tSearch, cSearch, perfMode)
     if (searchTrace) result.push(searchTrace)
 
     return result
   }, [blockData, searchQuery, perfMode])
+
+  const handlePlotClick = (event) => {
+    if (!event.points || !event.points.length) return
+    const point = event.points[0]
+    const data = point.customdata
+    if (data && typeof data === 'object' && data.id) {
+      onSelectContainer(data)
+    }
+  }
 
   const maxB = yardData.n_bays
   const maxR = yardData.n_rows
@@ -116,9 +136,6 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
     legend: { bgcolor: 'rgba(0,0,0,0.5)', font: { color: 'white' } },
     font: { color: '#8B949E', family: 'Inter, sans-serif' },
   }), [maxB, maxR, yardData.max_height])
-
-  // Stats for currently selected block
-  const occupancyPct = blockData ? (blockData.occupancy * 100).toFixed(1) : 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '10px' }}>
@@ -143,6 +160,7 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
           config={{ responsive: true, displayModeBar: true }}
           style={{ width: '100%', height: '100%' }}
           useResizeHandler
+          onClick={handlePlotClick}
         />
       </div>
     </div>

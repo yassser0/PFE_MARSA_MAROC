@@ -5,7 +5,7 @@ import Plot from 'react-plotly.js'
  * Builds cube mesh traces for plotly (same algorithm as dashboard.py).
  * In perf mode, uses Scatter3d with square markers instead of full meshes.
  */
-function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, offset = [0, 0], perfMode = false) {
+function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, customDataList, offset = [0, 0], perfMode = false) {
   if (!xCoords.length) return null
   const [ox, oy] = offset
 
@@ -19,12 +19,13 @@ function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, off
       marker: { symbol: 'square', size: 8, color, opacity: 0.9 },
       name,
       text: hoverTexts,
+      customdata: customDataList,
       hoverinfo: hoverTexts.length ? 'text' : 'name',
     }
   }
 
   const dx = 0.8, dy = 1.3, dz = 0.9
-  const X = [], Y = [], Z = [], I = [], J = [], K = [], textExpanded = []
+  const X = [], Y = [], Z = [], I = [], J = [], K = [], textExpanded = [], customDataExpanded = []
 
   xCoords.forEach((x, idx) => {
     const ax = x + ox, ay = yCoords[idx] + oy
@@ -43,7 +44,11 @@ function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, off
     K.push(...k.map(v => v + base))
 
     const txt = hoverTexts[idx] || ''
-    for (let q = 0; q < 8; q++) textExpanded.push(txt)
+    const cd = customDataList[idx]
+    for (let q = 0; q < 8; q++) {
+      textExpanded.push(txt)
+      customDataExpanded.push(cd)
+    }
   })
 
   return {
@@ -55,11 +60,12 @@ function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, off
     name,
     showscale: false,
     text: textExpanded,
+    customdata: customDataExpanded,
     hoverinfo: hoverTexts.length ? 'text' : 'name',
   }
 }
 
-export default function GlobalView3D({ yardData, searchQuery, perfMode, onInspectBlock }) {
+export default function GlobalView3D({ yardData, searchQuery, perfMode, onInspectBlock, onSelectContainer }) {
   const traces = useMemo(() => {
     const result = []
 
@@ -76,6 +82,7 @@ export default function GlobalView3D({ yardData, searchQuery, perfMode, onInspec
         color: '#4a9eff', opacity: 0.06,
         hoverinfo: 'skip',
         name: `Sol ${block_id}`,
+        customdata: [block_id, block_id], // For block click identification
         showlegend: false,
       })
 
@@ -94,8 +101,8 @@ export default function GlobalView3D({ yardData, searchQuery, perfMode, onInspec
       })
 
       // Containers
-      const xNorm = [], yNorm = [], zNorm = [], tNorm = []
-      const xSearch = [], ySearch = [], zSearch = [], tSearch = []
+      const xNorm = [], yNorm = [], zNorm = [], tNorm = [], cNorm = []
+      const xSearch = [], ySearch = [], zSearch = [], tSearch = [], cSearch = []
 
       for (const stack of stacks) {
         for (const slot of (stack.slots || [])) {
@@ -114,23 +121,42 @@ export default function GlobalView3D({ yardData, searchQuery, perfMode, onInspec
           const locStr = details?.location || ''
           const isMatch = searchQuery && (searchQuery === slot.container_id || searchQuery === locStr)
 
+          const containerData = {
+            id: slot.container_id,
+            ...details
+          }
+
           if (isMatch) {
-            xSearch.push(rowXOffset); ySearch.push(bayYOffset); zSearch.push(tierIdx); tSearch.push(hover)
+            xSearch.push(rowXOffset); ySearch.push(bayYOffset); zSearch.push(tierIdx); tSearch.push(hover); cSearch.push(containerData)
           } else {
-            xNorm.push(rowXOffset); yNorm.push(bayYOffset); zNorm.push(tierIdx); tNorm.push(hover)
+            xNorm.push(rowXOffset); yNorm.push(bayYOffset); zNorm.push(tierIdx); tNorm.push(hover); cNorm.push(containerData)
           }
         }
       }
 
-      const normTrace = buildCubeTraces(xNorm, yNorm, zNorm, '#2ca02c', `B-${block_id}`, tNorm, [bx, by], perfMode)
+      const normTrace = buildCubeTraces(xNorm, yNorm, zNorm, '#2ca02c', `B-${block_id}`, tNorm, cNorm, [bx, by], perfMode)
       if (normTrace) result.push(normTrace)
 
-      const searchTrace = buildCubeTraces(xSearch, ySearch, zSearch, '#00fdff', 'Trouvé', tSearch, [bx, by], perfMode)
+      const searchTrace = buildCubeTraces(xSearch, ySearch, zSearch, '#00fdff', 'Trouvé', tSearch, cSearch, [bx, by], perfMode)
       if (searchTrace) result.push(searchTrace)
     }
 
     return result
   }, [yardData, searchQuery, perfMode])
+
+  const handlePlotClick = useCallback((event) => {
+    if (!event.points || !event.points.length) return
+    const point = event.points[0]
+    const data = point.customdata
+
+    if (data && typeof data === 'object' && data.id) {
+      // Container select
+      onSelectContainer(data)
+    } else if (typeof data === 'string') {
+      // Block select (floor click)
+      onInspectBlock(data)
+    }
+  }, [onInspectBlock, onSelectContainer])
 
   const layout = useMemo(() => ({
     clickmode: 'event+select',
@@ -170,6 +196,7 @@ export default function GlobalView3D({ yardData, searchQuery, perfMode, onInspec
           config={{ responsive: true, displayModeBar: true }}
           style={{ width: '100%', height: '100%' }}
           useResizeHandler
+          onClick={handlePlotClick}
         />
       </div>
     </div>

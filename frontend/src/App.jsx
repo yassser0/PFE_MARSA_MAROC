@@ -5,6 +5,7 @@ import KpiHeader from './components/KpiHeader'
 import GlobalView3D from './components/GlobalView3D'
 import BlockDetailView from './components/BlockDetailView'
 import AnalyticsView from './components/AnalyticsView'
+import ContainerInfoDrawer from './components/ContainerInfoDrawer'
 
 const API_URL = 'http://127.0.0.1:8000'
 const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique']
@@ -16,6 +17,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Vue Globale 3D')
   const [selectedBlock, setSelectedBlock] = useState('A')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedContainer, setSelectedContainer] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [perfMode, setPerfMode] = useState(false)
   const intervalRef = useRef(null)
@@ -123,9 +125,9 @@ export default function App() {
               searchQuery={searchQuery}
               perfMode={perfMode}
               onInspectBlock={handleInspectBlock}
+              onSelectContainer={setSelectedContainer}
             />
           )}
-
 
           {!loading && yardData && activeTab === 'Vue Détail Bloc' && (
             <BlockDetailView
@@ -134,6 +136,7 @@ export default function App() {
               onBlockChange={setSelectedBlock}
               searchQuery={searchQuery}
               perfMode={perfMode}
+              onSelectContainer={setSelectedContainer}
             />
           )}
 
@@ -142,6 +145,11 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <ContainerInfoDrawer 
+        container={selectedContainer} 
+        onClose={() => setSelectedContainer(null)} 
+      />
     </div>
   )
 }
