@@ -4,7 +4,7 @@ data_generator/generator.py
 Génération de données synthétiques réalistes pour le terminal à conteneurs.
 
 Ce module simule des données de yard et de conteneurs qui seraient
-normalement extraitees d'un TOS (Terminal Operating System) réel.
+normalement extraitee d'un TOS (Terminal Operating System) réel.
 
 Fonctions principales
 ---------------------
@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import random
 import string
-import uuid
 from datetime import datetime, timedelta
 from typing import List
 
@@ -68,14 +67,6 @@ _SIMULATION_REFERENCE = datetime(2026, 3, 4, 14, 0, 0)
 def _weighted_choice(weights_dict: dict) -> any:
     """
     Sélectionne une clé aléatoire depuis un dictionnaire pondéré.
-
-    Parameters
-    ----------
-    weights_dict : {valeur: poids_relatif}
-
-    Returns
-    -------
-    La clé sélectionnée selon la distribution de probabilité.
     """
     keys = list(weights_dict.keys())
     weights = list(weights_dict.values())
@@ -85,9 +76,6 @@ def _weighted_choice(weights_dict: dict) -> any:
 def _generate_container_id() -> str:
     """
     Génère un identifiant de conteneur conforme au standard ISO 6346.
-    Format simplifié : MSCU + 7 chiffres (ex. MSCU1234567)
-
-    En production, cet ID serait lu depuis le BL (Bill of Lading).
     """
     prefix = random.choice(["MSCU", "CMAU", "MRKU", "TCKU", "TLLU"])
     digits = "".join(random.choices(string.digits, k=7))
@@ -101,8 +89,6 @@ def _generate_departure_time(
 ) -> datetime:
     """
     Génère une date de départ aléatoire dans la fenêtre de simulation.
-
-    Les heures sont réalistes (6h–22h, aux heures rondes).
     """
     days_offset = random.uniform(min_days, max_days)
     hour = random.choice(range(6, 23, 2))  # 6h, 8h, 10h, ... 22h
@@ -117,31 +103,6 @@ def _generate_departure_time(
 def generate_containers(n: int) -> List[Container]:
     """
     Génère une liste de n conteneurs synthétiques réalistes.
-
-    Chaque conteneur possède :
-    - Un ID unique au format opérateur + 7 chiffres
-    - Une taille 20 ou 40 EVP (selon distribution réelle)
-    - Un poids cohérent avec son type
-    - Une date de départ dans les 1–21 jours
-    - Un type opérationnel (import/export/transshipment)
-
-    Parameters
-    ----------
-    n : int
-        Nombre de conteneurs à générer
-
-    Returns
-    -------
-    List[Container]
-        Liste de n conteneurs uniques
-
-    Example
-    -------
-    >>> containers = generate_containers(10)
-    >>> len(containers)
-    10
-    >>> all(c.size in (20, 40) for c in containers)
-    True
     """
     if n <= 0:
         raise ValueError(f"Le nombre de conteneurs doit être > 0, reçu : {n}")
@@ -150,26 +111,19 @@ def generate_containers(n: int) -> List[Container]:
     used_ids: set = set()
 
     for _ in range(n):
-        # 1. Générer un ID unique
         container_id = _generate_container_id()
         while container_id in used_ids:
             container_id = _generate_container_id()
         used_ids.add(container_id)
 
-        # 2. Choisir le type
         c_type: ContainerType = _weighted_choice(CONTAINER_TYPE_WEIGHTS)
-
-        # 3. Choisir la taille (20ft ou 40ft)
         c_size: int = _weighted_choice(CONTAINER_SIZE_WEIGHTS)
 
-        # 4. Générer le poids (cohérent avec le type)
         w_min, w_max = WEIGHT_RANGES_BY_TYPE[c_type]
-        # Légèrement plus lourd pour les 40ft (plus grand volume)
         if c_size == 40:
             w_min = min(w_min * 1.1, w_max - 1)
         weight = round(random.uniform(w_min, w_max), 2)
 
-        # 5. Date de départ
         departure = _generate_departure_time()
 
         containers.append(
@@ -191,40 +145,13 @@ def generate_containers(n: int) -> List[Container]:
 
 def generate_yard(
     blocks: int = 4,
-    bays: int = 10,
-    rows: int = 3,
-    max_height: int = 4,
+    bays: int = 24, # Échelle augmentée
+    rows: int = 6,  # Format standard pour RTG
+    max_height: int = 5,
 ) -> Yard:
     """
-    Génère un yard vide avec la structure 3D spécifiée.
-
-    Le yard est organisé en blocs (zones physiques délimitées par des
-    voies de circulation), chaque bloc contenant des rangées de piles.
-
-    Paramètres par défaut inspirés d'un terminal de taille moyenne
-    (ex. TC2 de Marsa Maroc — Casablanca) :
-    - 4 blocs   : A, B, C, D
-    - 10 rangées par bloc
-    - 4 niveaux de hauteur maximum
-
-    Parameters
-    ----------
-    blocks     : int, nombre de blocs (default: 4)
-    rows       : int, rangées par bloc (default: 10)
-    max_height : int, hauteur max des piles (default: 4)
-
-    Returns
-    -------
-    Yard
-        Instance vide prête à accueillir des conteneurs
-
-    Example
-    -------
-    >>> yard = generate_yard()
-    >>> yard.total_capacity
-    160
-    >>> yard.occupancy_rate
-    0.0
+    Génère un yard réaliste imitant le TC3 de Casablanca.
+    Organisation optimisée pour les grues RTG et la circulation des camions.
     """
     if blocks <= 0 or rows <= 0 or max_height <= 0:
         raise ValueError("Les dimensions du yard doivent être toutes positives.")
@@ -238,19 +165,25 @@ def generate_yard(
         max_height=max_height,
     )
     
-    # Configuration spatiale réajustée (Proportions visuelles optimisées pour 3 rangées de large)
-    block_width = rows * 2.5    # Largeur basée sur le nombre de rangées (2.5m par row pour laisser de l'espace)
-    block_length = bays * 1.5   # Longueur basée sur le nombre de travées (~1.5m par bay)
-    spacing_x = 15.0            # Espace horizontal entre colonnes de blocs
-    spacing_y = 10.0            # Espace vertical entre blocs
+    # Configuration spatiale TC3 Digital Twin
+    slot_width = 2.8    # Largeur pour laisser passer les jambes du RTG
+    slot_length = 6.4   # Longueur standard conteneur + marges
+    
+    block_width = rows * slot_width
+    block_length = bays * slot_length
+    
+    # Zones de circulation (Digital Twin standard)
+    truck_main_road = 20.0  # Grande route périmétrale
+    internal_service_lane = 12.0 # Voie de service entre blocs (longitudinal)
     
     for i, (block_id, block) in enumerate(yard.blocks.items()):
-        # Layout en 2 colonnes principales
+        # Layout : 2 colonnes de blocs face à face
         col = i % 2
         row_in_col = i // 2
         
-        block.x = col * spacing_x
-        block.y = row_in_col * (block_length + spacing_y)
+        # Positionnement avec buffer pour routes et grues
+        block.x = col * (block_width + truck_main_road)
+        block.y = row_in_col * (block_length + internal_service_lane)
         block.width = block_width
         block.length = block_length
         block.rotation = 0.0

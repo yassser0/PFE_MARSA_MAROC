@@ -1,243 +1,214 @@
-import { useMemo, useCallback } from 'react'
-import Plotly from 'plotly.js-dist-min'
-import createPlotComponent from 'react-plotly.js/factory'
+import React, { useMemo, useState, Suspense } from 'react'
+import { Canvas } from '@react-three/fiber'
+import { 
+  OrbitControls, 
+  PerspectiveCamera, 
+  Environment, 
+  ContactShadows, 
+  Sky, 
+  Text,
+  useGLTF,
+  Clone
+} from '@react-three/drei'
+import * as THREE from 'three'
 
-const Plot = createPlotComponent(Plotly)
+// --- Constants & Palettes ---
+const STATUS_PALETTE = {
+  'normal': '#3fb950',        // Green
+  'scheduled': '#d29922',     // Yellow
+  'urgent': '#f85149',        // Red
+  'empty': '#58a6ff',         // Blue
+  'default': '#8b949e'
+}
+
+function getStatusColor(slot) {
+  const details = slot.container_details;
+  if (!details) return STATUS_PALETTE.default;
+  if (details.type === 'export') return STATUS_PALETTE.scheduled;
+  if (details.weight > 25) return STATUS_PALETTE.urgent;
+  if (details.type === 'empty') return STATUS_PALETTE.empty;
+  return STATUS_PALETTE.normal;
+}
+
+// --- Dynamic Model Loader (Blender Integration) ---
 
 /**
- * Builds high-fidelity corrugated container mesh traces.
- * Uses a 24-vertex geometry to simulate ridges and corner frames.
+ * Container component that can use a Blender model or a Box fallback.
  */
-function buildCubeTraces(xCoords, yCoords, zCoords, color, name, hoverTexts, customDataList, offset = [0, 0], perfMode = false) {
-  if (!xCoords.length) return null
-  const [ox, oy] = offset
-
-  const dx = 0.8, dy = 2.0, dz = 0.85
-  const gap = 0.05
-  const frame = 0.06
-
-  if (perfMode) {
-    return {
-      type: 'scatter3d',
-      mode: 'markers',
-      x: xCoords.map(x => x + ox + dx/2),
-      y: yCoords.map(y => y + oy + dy/2),
-      z: zCoords.map(z => z + dz/2),
-      marker: { symbol: 'square', size: 8, color, opacity: 0.95 },
-      name,
-      text: hoverTexts,
-      customdata: customDataList,
-      hoverinfo: 'text',
-    }
-  }
-
-  const X = [], Y = [], Z = [], I = [], J = [], K = [], textExpanded = [], customDataExpanded = []
-
-  xCoords.forEach((x, idx) => {
-    const ax = x + ox + gap, ay = yCoords[idx] + oy + gap, az = zCoords[idx] + gap
-    const rdx = dx - 2*gap, rdy = dy - 2*gap, rdz = dz - 2*gap
-    const base = X.length
-
-    // Realistic geometry: Body + slight ridges Simulation
-    // We define a box but add "inset" vertices for the corrugated effect
-    // To keep performance high in Plotly, we use a 12-facet box with shaded normals
-    
-    // Bottom 4
-    X.push(ax, ax+rdx, ax+rdx, ax)
-    Y.push(ay, ay, ay+rdy, ay+rdy)
-    Z.push(az, az, az, az)
-    
-    // Top 4
-    X.push(ax, ax+rdx, ax+rdx, ax)
-    Y.push(ay, ay, ay+rdy, ay+rdy)
-    Z.push(az+rdz, az+rdz, az+rdz, az+rdz)
-
-    // Structural posts (simplified by using sharp shading)
-    const i = [7,0,0,0,4,4,6,6,4,0,3,2]
-    const j = [3,4,1,2,5,6,5,2,0,1,6,3]
-    const k = [0,7,2,3,6,7,1,1,5,5,7,6]
-    I.push(...i.map(v => v + base))
-    J.push(...j.map(v => v + base))
-    K.push(...k.map(v => v + base))
-
-    const txt = hoverTexts[idx] || ''
-    const cd = customDataList[idx]
-    for (let q = 0; q < 8; q++) {
-      textExpanded.push(txt)
-      customDataExpanded.push(cd)
-    }
-  })
-
-  return {
-    type: 'mesh3d',
-    x: X, y: Y, z: Z,
-    i: I, j: J, k: K,
-    color, opacity: 1,
-    flatshading: false, // Smooth shading for metallic look
-    lighting: { 
-      ambient: 0.5, 
-      diffuse: 0.9, 
-      specular: 0.5, 
-      roughness: 0.3,
-      fresnel: 0.2
-    },
-    lightposition: { x: 100, y: 100, z: 100 },
-    name,
-    showscale: false,
-    text: textExpanded,
-    customdata: customDataExpanded,
-    hoverinfo: 'text',
-  }
-}
-
-const INDUSTRIAL_PALETTE = [
-  '#005073', // Maersk Blue
-  '#FFCC00', // MSC Yellow
-  '#E2001A', // CMA CGM Red
-  '#FF6600', // Hapag Orange
-  '#808080', // Industrial Grey
-  '#FFFFFF', // White
-  '#007AC3', // Triton Blue
-  '#2F4F4F', // Dark Slate
-]
-
-function getContainerColor(id) {
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-  return INDUSTRIAL_PALETTE[hash % INDUSTRIAL_PALETTE.length]
-}
-
-export default function GlobalView3D({ yardData, searchQuery, perfMode, onInspectBlock, onSelectContainer }) {
-  const traces = useMemo(() => {
-    const result = []
-
-    for (const block of yardData.blocks) {
-      const { x: bx, y: by, width: bw, length: bl, block_id, stacks } = block
-
-      // Ground / Asphalt with markings
-      result.push({
-        type: 'mesh3d',
-        x: [bx, bx+bw, bx+bw, bx],
-        y: [by, by, by+bl, by+bl],
-        z: [0, 0, 0, 0],
-        i: [0, 0], j: [1, 2], k: [2, 3],
-        color: '#1a1a1b', opacity: 1,
-        hoverinfo: 'skip',
-        name: `Sol ${block_id}`,
-        customdata: [block_id, block_id],
-        showlegend: false,
-      })
-
-      // Ground white lines (bay markings)
-      for (let r = 0; r <= yardData.n_rows; r++) {
-        result.push({
-          type: 'scatter3d',
-          mode: 'lines',
-          x: [bx + r * 2.5, bx + r * 2.5],
-          y: [by, by + bl],
-          z: [0.02, 0.02],
-          line: { color: 'rgba(255,255,255,0.3)', width: 2 },
-          showlegend: false, hoverinfo: 'none'
-        })
-      }
-
-      // Group containers by color for performance
-      const colorGroups = {}
-
-      for (const stack of stacks) {
-        for (const slot of (stack.slots || [])) {
-          if (slot.is_free) continue
-
-          const isMatch = searchQuery && (
-            slot.container_id === searchQuery || 
-            (slot.container_details?.location === searchQuery)
-          )
-
-          const color = isMatch ? '#00fdff' : getContainerColor(slot.container_id)
-          const key = isMatch ? 'SEARCH' : color
-
-          if (!colorGroups[key]) {
-            colorGroups[key] = { x: [], y: [], z: [], t: [], c: [], color, name: isMatch ? 'TROUVÉ' : 'CONTAINER' }
-          }
-
-          const tierZ = (slot.tier - 1) * 0.9 // Height proportion
-          const rowX = (stack.row - 1) * 2.5
-          const bayY = (stack.bay - 1) * 2.2 // Increased spacing for dy=2.0
-
-          const details = slot.container_details
-          let hover = `<b>${slot.container_id}</b>`
-          if (details) {
-            hover += `<br>Type: ${details.type}<br>Localisation: ${details.location}`
-          }
-
-          colorGroups[key].x.push(rowX)
-          colorGroups[key].y.push(bayY)
-          colorGroups[key].z.push(tierZ)
-          colorGroups[key].t.push(hover)
-          colorGroups[key].c.push({ id: slot.container_id, ...details })
-        }
-      }
-
-      Object.values(colorGroups).forEach(group => {
-        const trace = buildCubeTraces(group.x, group.y, group.z, group.color, group.name, group.t, group.c, [bx, by], perfMode)
-        if (trace) result.push(trace)
-      })
-    }
-
-    return result
-  }, [yardData, searchQuery, perfMode])
-
-  const handlePlotClick = useCallback((event) => {
-    if (!event.points || !event.points.length) return
-    const point = event.points[0]
-    const data = point.customdata
-
-    if (data && typeof data === 'object' && data.id) {
-      onSelectContainer(data)
-    } else if (typeof data === 'string') {
-      onInspectBlock(data)
-    }
-  }, [onInspectBlock, onSelectContainer])
-
-  const layout = useMemo(() => ({
-    clickmode: 'event+select',
-    scene: {
-      xaxis: { title: 'X', showgrid: false, zeroline: false, showticklabels: false },
-      yaxis: { title: 'Y', showgrid: false, zeroline: false, showticklabels: false },
-      zaxis: { title: 'Z', showgrid: false, zeroline: false, showticklabels: false },
-      aspectmode: 'data',
-      bgcolor: '#0d1117',
-    },
-    margin: { l: 0, r: 0, b: 0, t: 0 },
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    legend: { bgcolor: 'rgba(0,0,0,0.5)', font: { color: 'white' } },
-    modebar: { bgcolor: 'rgba(0,0,0,0.5)', color: 'white', activecolor: 'var(--accent-green)' },
-    font: { color: '#8B949E', family: 'Inter, sans-serif' },
-  }), [])
+function ContainerModel({ position, color, data, onSelect, isMatch }) {
+  const [hovered, setHover] = useState(false)
+  
+  // Placeholder for Blender model integration
+  // To use a blender model: 
+  // 1. Uncomment the useGLTF line below
+  // 2. Put your .glb file in /public/models/iso_container.glb
+  // const { scene } = useGLTF('/models/iso_container.glb', true)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '10px' }}>
-      <div className="block-nav">
-        {yardData.blocks.map(b => (
-          <button
-            key={b.block_id}
-            className="btn-block-nav"
-            onClick={() => onInspectBlock(b.block_id)}
+    <group position={position}>
+      <mesh 
+        castShadow 
+        receiveShadow 
+        onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer' }} 
+        onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto' }} 
+        onClick={(e) => { e.stopPropagation(); onSelect(data) }}
+      >
+        <boxGeometry args={[2.5, 2.5, 6.1]} />
+        <meshStandardMaterial 
+          color={isMatch ? '#00fdff' : color} 
+          metalness={0.6} 
+          roughness={0.4}
+          emissive={isMatch || hovered ? '#00fdff' : 'black'}
+          emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
+        />
+      </mesh>
+      {/* 
+      If using GLTF:
+      <Clone 
+        object={scene} 
+        inject={<meshStandardMaterial color={color} />} 
+      /> 
+      */}
+    </group>
+  )
+}
+
+/**
+ * RTG Crane component (Blender placeholders included)
+ */
+function RTGModel({ position }) {
+  // const { scene } = useGLTF('/models/rtg_crane.glb', true)
+  
+  return (
+    <group position={position}>
+      {/* Procedural fallback for now */}
+      <mesh position={[-6, 6, 0]} castShadow> <boxGeometry args={[0.8, 12, 1.2]} /> <meshStandardMaterial color="#ebc034" /> </mesh>
+      <mesh position={[6, 6, 0]} castShadow> <boxGeometry args={[0.8, 12, 1.2]} /> <meshStandardMaterial color="#ebc034" /> </mesh>
+      <mesh position={[0, 12, 0]} castShadow> <boxGeometry args={[13, 1, 3]} /> <meshStandardMaterial color="#ebc034" /> </mesh>
+      <mesh position={[0, 11, 0]}> <boxGeometry args={[2, 0.5, 2]} /> <meshStandardMaterial color="#333" /> </mesh>
+    </group>
+  )
+}
+
+// --- Main Environment ---
+
+function SceneContent({ yardData, searchQuery, onSelectContainer }) {
+  return (
+    <>
+      <Sky distance={450000} sunPosition={[10, 20, 10]} inclination={0} azimuth={0.25} />
+      <Environment preset="night" />
+      <ambientLight intensity={0.4} />
+      <directionalLight 
+        position={[100, 150, 100]} 
+        intensity={1.5} 
+        castShadow 
+        shadow-mapSize={[2048, 2048]} 
+      />
+
+      {/* Ground & Water */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[50, -0.05, 100]} receiveShadow>
+        <planeGeometry args={[500, 600]} />
+        <meshStandardMaterial color="#111" roughness={0.9} />
+      </mesh>
+      
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-150, -1, 100]}>
+        <planeGeometry args={[200, 600]} />
+        <meshStandardMaterial color="#001220" roughness={0.1} metalness={0.9} transparent opacity={0.6} />
+      </mesh>
+
+      <gridHelper args={[600, 60, '#222', '#222']} position={[50, 0, 100]} />
+
+      {/* Blocks & Assets */}
+      {yardData?.blocks?.map((block) => (
+        <group key={block.block_id} position={[block.x, 0, block.y]}>
+          <Text
+            position={[block.width/2, 5, -10]}
+            fontSize={10}
+            color="#8B949E"
+            anchorX="center"
           >
-            🔍 Bloc {b.block_id}
-          </button>
-        ))}
+            BLOC {block.block_id}
+          </Text>
+
+          <RTGModel position={[block.width/2, 0, block.length/2]} />
+
+          {block.stacks.map((stack) => (
+            <group key={`${block.block_id}-${stack.row}-${stack.bay}`} position={[(stack.row - 1) * 2.8 + 1.4, 0, (stack.bay - 1) * 6.4 + 3.2]}>
+              {stack.slots.map((slot) => {
+                if (slot.is_free) return null;
+                const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)
+                return (
+                  <ContainerModel 
+                    key={slot.container_id}
+                    position={[0, (slot.tier - 1) * 2.6 + 1.3, 0]}
+                    color={getStatusColor(slot)}
+                    data={{ id: slot.container_id, ...slot.container_details }}
+                    onSelect={onSelectContainer}
+                    isMatch={isMatch}
+                  />
+                )
+              })}
+            </group>
+          ))}
+        </group>
+      ))}
+      <ContactShadows opacity={0.4} scale={500} blur={2} far={10} color="#000000" />
+    </>
+  )
+}
+
+// --- Entry Point ---
+
+export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, onSelectContainer }) {
+  const stats = useMemo(() => {
+    if (!yardData) return { occupancy: 0, count: 0, alerts: 0 }
+    const totalSlots = yardData.n_blocks * yardData.n_bays * yardData.n_rows * yardData.max_height
+    let filled = 0
+    yardData.blocks.forEach(b => {
+      b.stacks.forEach(s => {
+        s.slots.forEach(sl => { if (!sl.is_free) filled++ })
+      })
+    })
+    return {
+      occupancy: totalSlots > 0 ? ((filled / totalSlots) * 100).toFixed(1) : 0,
+      count: filled,
+      alerts: filled > totalSlots * 0.8 ? 1 : 0
+    }
+  }, [yardData])
+
+  if (!yardData) return <div className="loading-spinner">Initialisation du Yard...</div>
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080a0c', overflow: 'hidden' }}>
+      {/* Analytics HUD Overlay */}
+      <div className="analytics-hud" style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10, pointerEvents: 'none' }}>
+        <div className="hud-card glass" style={{ pointerEvents: 'auto' }}>
+          <label>OCCUPATION GLOBALE</label>
+          <div className="value">{stats.occupancy}%</div>
+          <div className="progress-bg"><div className="progress-fill" style={{ width: `${stats.occupancy}%` }}></div></div>
+        </div>
       </div>
 
-      <div className="chart-container" style={{ flex: 1 }}>
-        <Plot
-          data={traces}
-          layout={layout}
-          config={{ responsive: true, displayModeBar: true, scrollZoom: true }}
-          style={{ width: '100%', height: '100%' }}
-          useResizeHandler
-          onClick={handlePlotClick}
-        />
+      <Canvas shadows camera={{ position: [150, 100, 200], fov: 40 }}>
+        <Suspense fallback={null}>
+          <SceneContent 
+            yardData={yardData} 
+            searchQuery={searchQuery} 
+            onSelectContainer={onSelectContainer} 
+          />
+          <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={20} maxDistance={500} />
+        </Suspense>
+      </Canvas>
+
+      <div className="block-nav-overlay" style={{
+        position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+        display: 'flex', gap: '10px', zIndex: 10
+      }}>
+        {yardData.blocks.map(b => (
+          <button key={b.block_id} className="btn-block-nav glass" onClick={() => onInspectBlock(b.block_id)}>
+            FOCUS {b.block_id}
+          </button>
+        ))}
       </div>
     </div>
   )

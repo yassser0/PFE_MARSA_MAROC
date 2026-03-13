@@ -6,7 +6,10 @@ export default function ContainerInfoDrawer({ container, onClose }) {
   return (
     <div className={`container-drawer ${container ? 'open' : ''}`}>
       <div className="drawer-header">
-        <h3>Informations Conteneur</h3>
+        <div>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600 }}>Détails de l'unité</span>
+          <h3 style={{ marginTop: '4px' }}>Logistics Intelligence</h3>
+        </div>
         <button className="btn-close" onClick={onClose}>&times;</button>
       </div>
       
@@ -18,30 +21,44 @@ export default function ContainerInfoDrawer({ container, onClose }) {
 
         <div className="info-grid">
           <div className="info-group">
-            <label>Type</label>
-            <div className="info-value">{container.type || 'N/A'}</div>
+            <label>Type Opérationnel</label>
+            <div className="info-value" style={{ 
+              color: container.type === 'import' ? 'var(--accent-green)' : 
+                     container.type === 'export' ? 'var(--accent-blue)' : 
+                     'var(--accent-orange)',
+              fontWeight: 600,
+              textTransform: 'capitalize'
+            }}>
+              {container.type}
+            </div>
           </div>
           <div className="info-group">
-            <label>Taille</label>
-            <div className="info-value">{container.size || 'N/A'} ft</div>
+            <label>Taille Standard</label>
+            <div className="info-value">{container.size} ft (EVP)</div>
           </div>
           <div className="info-group">
-            <label>Poids</label>
-            <div className="info-value">{container.weight || 'N/A'} t</div>
+            <label>Poids Brut</label>
+            <div className="info-value" style={{ color: container.weight > 25 ? 'var(--accent-red)' : 'var(--text-primary)' }}>
+              {container.weight} tonnes
+            </div>
           </div>
           <div className="info-group">
-            <label>Départ</label>
-            <div className="info-value">{container.departure_time || 'N/A'}</div>
+            <label>Heure de Départ</label>
+            <div className="info-value" style={{ fontSize: '0.9rem' }}>{container.departure_time}</div>
           </div>
         </div>
 
-        <div className="info-group location-info">
-          <label>Localisation Actuelle</label>
-          <div className="info-value">{container.location || 'Inconnu'}</div>
+        <div className="location-info" style={{ marginTop: '40px', padding: '24px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid var(--border-strong)' }}>
+          <label style={{ color: 'var(--accent-cyan)', fontSize: '0.65rem' }}>Position dans le Yard</label>
+          <div className="info-value" style={{ fontSize: '1.4rem', fontWeight: 700, marginTop: '8px', letterSpacing: '1px' }}>
+            {container.location?.replace(/-/g, ' • ')}
+          </div>
         </div>
 
-        <div className="drawer-footer">
-          <button className="btn-action" onClick={onClose}>Fermer</button>
+        <div style={{ marginTop: 'auto', paddingTop: '40px' }}>
+          <button className="btn-action" onClick={onClose}>
+            Terminer l'inspection
+          </button>
         </div>
       </div>
     </div>
