@@ -223,3 +223,32 @@ def calculate_score(slot: Slot, container: Container, yard: Yard) -> float:
     return round(total_score, 4)
 
 
+def score_breakdown(slot: Slot, container: Container, yard: Yard) -> dict:
+    """
+    Retourne le détail des composantes du score pour analyse.
+    """
+    block = yard.blocks.get(slot.block_id)
+    stack = block.stacks.get((slot.bay, slot.row))
+    
+    rehandles = _estimate_rehandles(stack, slot.tier, container, yard)
+    rehandle_score = WEIGHT_REHANDLES * rehandles
+    height_score = WEIGHT_HEIGHT * (slot.tier - 1)
+    distance_score = WEIGHT_DISTANCE * _compute_distance_score(slot, yard)
+    
+    weight_penalty = 0.0
+    if slot.tier > 1:
+        below_slot = stack.slots[slot.tier - 2]
+        if below_slot.container_id:
+            below_container = _find_container_in_yard(below_slot.container_id, yard)
+            if below_container and container.weight > below_container.weight:
+                weight_penalty = 50.0
+
+    return {
+        "rehandle_score": rehandle_score,
+        "height_score": height_score,
+        "distance_score": distance_score,
+        "weight_penalty": weight_penalty,
+        "total_score": rehandle_score + height_score + distance_score + weight_penalty
+    }
+
+
