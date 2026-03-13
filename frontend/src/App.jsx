@@ -126,6 +126,7 @@ export default function App() {
             />
           )}
 
+
           {!loading && yardData && activeTab === 'Vue Détail Bloc' && (
             <BlockDetailView
               yardData={yardData}
