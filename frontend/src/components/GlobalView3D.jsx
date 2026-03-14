@@ -35,14 +35,10 @@ function getStatusColor(slot) {
 /**
  * Container component that can use a Blender model or a Box fallback.
  */
-function ContainerModel({ position, color, data, onSelect, isMatch }) {
+function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.0 }) {
   const [hovered, setHover] = useState(false)
   
-  // Placeholder for Blender model integration
-  // To use a blender model: 
-  // 1. Uncomment the useGLTF line below
-  // 2. Put your .glb file in /public/models/iso_container.glb
-  // const { scene } = useGLTF('/models/iso_container.glb', true)
+  if (opacity <= 0) return null; // Fully hidden
 
   return (
     <group position={position}>
@@ -58,17 +54,13 @@ function ContainerModel({ position, color, data, onSelect, isMatch }) {
           color={isMatch ? '#00fdff' : color} 
           metalness={0.6} 
           roughness={0.4}
+          transparent={opacity < 1}
+          opacity={opacity}
+          depthWrite={opacity >= 1} // CRITICAL: disable depthWrite for transparent objects
           emissive={isMatch || hovered ? '#00fdff' : 'black'}
           emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
         />
       </mesh>
-      {/* 
-      If using GLTF:
-      <Clone 
-        object={scene} 
-        inject={<meshStandardMaterial color={color} />} 
-      /> 
-      */}
     </group>
   )
 }
@@ -92,7 +84,7 @@ function RTGModel({ position }) {
 
 // --- Main Environment ---
 
-function SceneContent({ yardData, searchQuery, onSelectContainer }) {
+function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) {
   return (
     <>
       <Sky distance={450000} sunPosition={[10, 20, 10]} inclination={0} azimuth={0.25} />
@@ -142,42 +134,51 @@ function SceneContent({ yardData, searchQuery, onSelectContainer }) {
       {/* Blocks & Assets */}
       {yardData?.blocks?.map((block) => (
         <group key={block.block_id} position={[block.x, 0, block.y]}>
-          {/* Label centered above (top side) the block */}
+          {/* Label positioned above the block for clear identification */}
           <Text
-            position={[0, 0.1, -block.length / 2 - 8]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={6}
+            position={[0, 15, 0]}
+            rotation={[0, 0, 0]}
+            fontSize={8}
             color="#FFFFFF"
             anchorX="center"
             anchorY="middle"
+            outlineWidth={0.5}
+            outlineColor="#000000"
           >
-            ZONE {block.block_id}
+            {block.block_id}
           </Text>
 
           <RTGModel position={[0, 0, 0]} />
 
-          {block.stacks.map((stack) => (
-            <group key={`${block.block_id}-${stack.row}-${stack.bay}`} position={[
-              (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8, 
-              0, 
-              (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
-            ]}>
-              {stack.slots.map((slot) => {
-                if (slot.is_free) return null;
-                const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)
-                return (
-                  <ContainerModel 
-                    key={slot.container_id}
-                    position={[0, (slot.tier - 1) * 2.6 + 1.3, 0]}
-                    color={getStatusColor(slot)}
-                    data={{ id: slot.container_id, ...slot.container_details }}
-                    onSelect={onSelectContainer}
-                    isMatch={isMatch}
-                  />
-                )
-              })}
-            </group>
-          ))}
+          {block.stacks.map((stack) => {
+            // Hard Filtering: If a row is selected, completely hide others
+            const isTargetRow = visibleRow === 0 || stack.row === visibleRow;
+            if (!isTargetRow) return null; 
+
+            return (
+              <group key={`${block.block_id}-${stack.row}-${stack.bay}`} position={[
+                (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8, 
+                0, 
+                (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
+              ]}>
+                {stack.slots.map((slot) => {
+                  if (slot.is_free) return null;
+                  const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)
+                  return (
+                    <ContainerModel 
+                      key={slot.container_id}
+                      position={[0, (slot.tier - 1) * 2.6 + 1.3, 0]}
+                      color={getStatusColor(slot)}
+                      data={{ id: slot.container_id, ...slot.container_details }}
+                      onSelect={onSelectContainer}
+                      isMatch={isMatch}
+                      opacity={1.0} // Keep fully opaque for target row
+                    />
+                  )
+                })}
+              </group>
+            )
+          })}
         </group>
       ))}
       <ContactShadows opacity={0.4} scale={500} blur={2} far={10} color="#000000" />
@@ -188,6 +189,8 @@ function SceneContent({ yardData, searchQuery, onSelectContainer }) {
 // --- Entry Point ---
 
 export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, onSelectContainer }) {
+  const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
+  
   const stats = useMemo(() => {
     if (!yardData) return { occupancy: 0, count: 0, alerts: 0 }
     const totalSlots = yardData.n_blocks * yardData.n_bays * yardData.n_rows * yardData.max_height
@@ -209,11 +212,30 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080a0c', overflow: 'hidden' }}>
       {/* Analytics HUD Overlay */}
-      <div className="analytics-hud" style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10, pointerEvents: 'none' }}>
+      <div className="analytics-hud" style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div className="hud-card glass" style={{ pointerEvents: 'auto' }}>
           <label>OCCUPATION GLOBALE</label>
           <div className="value">{stats.occupancy}%</div>
           <div className="progress-bg"><div className="progress-fill" style={{ width: `${stats.occupancy}%` }}></div></div>
+        </div>
+
+        {/* Row Filter Tool */}
+        <div className="hud-card glass" style={{ pointerEvents: 'auto' }}>
+          <label>VISIBILITÉ RANGÉES</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+            <input 
+              type="range" 
+              min="0" 
+              max={yardData.n_rows} 
+              value={visibleRow} 
+              onChange={(e) => setVisibleRow(parseInt(e.target.value))}
+              style={{ flex: 1 }}
+            />
+            <span style={{ color: '#fff', fontSize: '14px', minWidth: '60px' }}>
+              {visibleRow === 0 ? 'Toutes' : `Rangée ${visibleRow}`}
+            </span>
+          </div>
+          <p style={{ fontSize: '10px', color: '#888', margin: '5px 0 0 0' }}>Filtrez pour voir l'intérieur du bloc</p>
         </div>
       </div>
 
@@ -223,6 +245,7 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
             yardData={yardData} 
             searchQuery={searchQuery} 
             onSelectContainer={onSelectContainer} 
+            visibleRow={visibleRow}
           />
           <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={20} maxDistance={200} />
         </Suspense>
