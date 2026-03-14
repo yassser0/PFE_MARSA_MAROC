@@ -96,15 +96,31 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
             <ambientLight intensity={0.5} />
             <directionalLight position={[20, 50, 20]} intensity={1.2} castShadow />
 
-            <group position={[-blockData.width/2, 0, -blockData.length/2]}>
-              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[blockData.width/2, -0.01, blockData.length/2]} receiveShadow>
+            <group position={[0, 0, 0]}>
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
                 <planeGeometry args={[blockData.width + 40, blockData.length + 40]} />
-                <meshStandardMaterial color="#050505" />
+                <meshStandardMaterial color="#050505" roughness={0.7} metalness={0.8} />
               </mesh>
-              <gridHelper args={[200, 20, '#1a1a1a', '#0a0a0a']} position={[blockData.width/2, 0, blockData.length/2]} />
+              
+              <Grid
+                position={[0, 0, 0]}
+                args={[200, 200]}
+                cellSize={2}
+                cellThickness={1}
+                cellColor="#111"
+                sectionSize={10}
+                sectionThickness={1.5}
+                sectionColor="#222"
+                fadeDistance={80}
+                fadeStrength={1}
+              />
 
               {blockData.stacks.map((stack) => (
-                <group key={`${stack.row}-${stack.bay}`} position={[(stack.row - 1) * 2.8 + 1.4, 0, (stack.bay - 1) * 6.4 + 3.2]}>
+                <group key={`${stack.row}-${stack.bay}`} position={[
+                  (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8, 
+                  0, 
+                  (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
+                ]}>
                   {stack.slots.map((slot) => {
                     if (slot.is_free) return null;
                     const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)

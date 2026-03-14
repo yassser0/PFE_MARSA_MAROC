@@ -105,28 +105,28 @@ function SceneContent({ yardData, searchQuery, onSelectContainer }) {
         shadow-mapSize={[2048, 2048]} 
       />
 
-      {/* Ground & Water */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-        <planeGeometry args={[250, 250]} />
-        <meshStandardMaterial color="#111" roughness={0.9} />
-      </mesh>
-      
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-150, -1, 0]}>
-        <planeGeometry args={[100, 250]} />
-        <meshStandardMaterial color="#001220" roughness={0.1} metalness={0.9} transparent opacity={0.6} />
-      </mesh>
-      {/* Black asphalt mat underneath the blocks */}
-      {yardData?.blocks?.[0] && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, 0]}>
-          <planeGeometry args={[
-            2 * yardData.blocks[0].width + 20 + 20 + 10, 
-            2 * yardData.blocks[0].length + 12 + 20 + 10
-          ]} />
-          <meshStandardMaterial color="#111111" roughness={0.9} />
-        </mesh>
-      )}
-
-      <gridHelper args={[250, 50, '#222', '#222']} position={[0, 0, 0]} />
+      {/* Ground minimized strictly to the 4 layout blocks */}
+      {yardData?.blocks?.[0] && (() => {
+        // Calculate exact bounding size based on block dimensions and small margin
+        const layoutWidth = 2 * yardData.blocks[0].width + 50; 
+        const layoutLength = 2 * yardData.blocks[0].length + 50;
+        
+        return (
+          <>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, 0]} receiveShadow>
+              <planeGeometry args={[layoutWidth, layoutLength]} />
+              <meshStandardMaterial color="#111111" roughness={0.9} />
+            </mesh>
+            <group rotation={[0, 0, 0]} position={[0, -0.03, 0]}>
+               {/* Custom Grid using Edges/Lines to perfectly fit non-square areas, 
+                   since GridHelper is strictly square. We use multiple generic lines or simply rely on
+                   the material's wireframe if simple, but here's a trick to manually stretch a GridHelper
+                   or we just use two GridHelpers intersected */}
+               <gridHelper args={[layoutWidth, Math.floor(layoutWidth / 5), '#222', '#222']} position={[0, 0, 0]} scale={[1, 1, layoutLength/layoutWidth]} />
+            </group>
+          </>
+        )
+      })()}
 
       {/* Blocks & Assets */}
       {yardData?.blocks?.map((block) => (
@@ -143,10 +143,14 @@ function SceneContent({ yardData, searchQuery, onSelectContainer }) {
             ZONE {block.block_id}
           </Text>
 
-          <RTGModel position={[block.width/2, 0, block.length/2]} />
+          <RTGModel position={[0, 0, 0]} />
 
           {block.stacks.map((stack) => (
-            <group key={`${block.block_id}-${stack.row}-${stack.bay}`} position={[(stack.row - 1) * 2.8 + 1.4, 0, (stack.bay - 1) * 6.4 + 3.2]}>
+            <group key={`${block.block_id}-${stack.row}-${stack.bay}`} position={[
+              (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8, 
+              0, 
+              (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
+            ]}>
               {stack.slots.map((slot) => {
                 if (slot.is_free) return null;
                 const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)
@@ -202,14 +206,14 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
         </div>
       </div>
 
-      <Canvas shadows camera={{ position: [150, 100, 200], fov: 40 }}>
+      <Canvas shadows camera={{ position: [80, 60, 100], fov: 40 }}>
         <Suspense fallback={null}>
           <SceneContent 
             yardData={yardData} 
             searchQuery={searchQuery} 
             onSelectContainer={onSelectContainer} 
           />
-          <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={20} maxDistance={500} />
+          <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={20} maxDistance={200} />
         </Suspense>
       </Canvas>
 
