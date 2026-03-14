@@ -105,38 +105,49 @@ function SceneContent({ yardData, searchQuery, onSelectContainer }) {
         shadow-mapSize={[2048, 2048]} 
       />
 
-      {/* Ground minimized strictly to the 4 layout blocks */}
-      {yardData?.blocks?.[0] && (() => {
-        // Calculate exact bounding size based on block dimensions and small margin
-        const layoutWidth = 2 * yardData.blocks[0].width + 50; 
-        const layoutLength = 2 * yardData.blocks[0].length + 50;
+      {/* Ground calculated dynamically based on block layout */}
+      {yardData?.blocks?.length > 0 && (() => {
+        // Find bounds of all blocks
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
         
+        yardData.blocks.forEach(b => {
+          // Block origin is at its center (usually), but let's assume its extent
+          const halfW = b.width / 2;
+          const halfL = b.length / 2;
+          minX = Math.min(minX, b.x - halfW);
+          maxX = Math.max(maxX, b.x + halfW);
+          minZ = Math.min(minZ, b.y - halfL);
+          maxZ = Math.max(maxZ, b.y + halfL);
+        });
+
+        const width = maxX - minX + 25; // Adjusted margin
+        const length = maxZ - minZ + 25;
+        const centerX = (maxX + minX) / 2;
+        const centerZ = (maxZ + minZ) / 2;
+
         return (
-          <>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, 0]} receiveShadow>
-              <planeGeometry args={[layoutWidth, layoutLength]} />
-              <meshStandardMaterial color="#111111" roughness={0.9} />
+          <group position={[centerX, -0.04, centerZ]}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+              <planeGeometry args={[width, length]} />
+              <meshStandardMaterial color="#0a0c0e" roughness={0.9} />
             </mesh>
-            <group rotation={[0, 0, 0]} position={[0, -0.03, 0]}>
-               {/* Custom Grid using Edges/Lines to perfectly fit non-square areas, 
-                   since GridHelper is strictly square. We use multiple generic lines or simply rely on
-                   the material's wireframe if simple, but here's a trick to manually stretch a GridHelper
-                   or we just use two GridHelpers intersected */}
-               <gridHelper args={[layoutWidth, Math.floor(layoutWidth / 5), '#222', '#222']} position={[0, 0, 0]} scale={[1, 1, layoutLength/layoutWidth]} />
-            </group>
-          </>
+            <gridHelper 
+              args={[Math.max(width, length), 20, '#222', '#1a1a1a']} 
+              position={[0, 0.01, 0]} 
+            />
+          </group>
         )
       })()}
 
       {/* Blocks & Assets */}
       {yardData?.blocks?.map((block) => (
         <group key={block.block_id} position={[block.x, 0, block.y]}>
-          {/* Label positioned to the right of the block, running parallel to it */}
+          {/* Label centered above (top side) the block */}
           <Text
-            position={[block.width + 10, 0.1, block.length / 2]}
-            rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+            position={[0, 0.1, -block.length / 2 - 8]}
+            rotation={[-Math.PI / 2, 0, 0]}
             fontSize={6}
-            color="#CCCCCC"
+            color="#FFFFFF"
             anchorX="center"
             anchorY="middle"
           >

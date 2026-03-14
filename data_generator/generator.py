@@ -173,8 +173,8 @@ def generate_yard(
     block_length = bays * slot_length
     
     # Zones de circulation (Digital Twin standard)
-    truck_main_road = 60.0  # Grande route périmétrale augmentée pour plus d'espace
-    internal_service_lane = 40.0 # Voie de service entre blocs (longitudinal) très élargie
+    truck_main_road = 30.0  # Espacement horizontal réduit pour centrage
+    internal_service_lane = 20.0 # Espacement vertical réduit pour centrage
     
     # Calcul des offsets pour centrer parfaitement les 4 zones (2x2) autour de (0,0)
     total_grid_width = 2 * block_width + truck_main_road
