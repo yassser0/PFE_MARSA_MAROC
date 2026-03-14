@@ -115,19 +115,32 @@ function SceneContent({ yardData, searchQuery, onSelectContainer }) {
         <planeGeometry args={[200, 600]} />
         <meshStandardMaterial color="#001220" roughness={0.1} metalness={0.9} transparent opacity={0.6} />
       </mesh>
+      {/* Black asphalt mat underneath the blocks */}
+      {yardData?.blocks?.[0] && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
+          <planeGeometry args={[
+            2 * yardData.blocks[0].width + 20 + 20, 
+            2 * yardData.blocks[0].length + 12 + 20
+          ]} />
+          <meshStandardMaterial color="#111111" roughness={0.9} />
+        </mesh>
+      )}
 
       <gridHelper args={[600, 60, '#222', '#222']} position={[50, 0, 100]} />
 
       {/* Blocks & Assets */}
       {yardData?.blocks?.map((block) => (
         <group key={block.block_id} position={[block.x, 0, block.y]}>
+          {/* Label positioned to the right of the block, running parallel to it */}
           <Text
-            position={[block.width/2, 5, -10]}
-            fontSize={10}
-            color="#8B949E"
+            position={[block.width + 10, 0.1, block.length / 2]}
+            rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+            fontSize={6}
+            color="#CCCCCC"
             anchorX="center"
+            anchorY="middle"
           >
-            BLOC {block.block_id}
+            ZONE {block.block_id}
           </Text>
 
           <RTGModel position={[block.width/2, 0, block.length/2]} />

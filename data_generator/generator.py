@@ -176,14 +176,29 @@ def generate_yard(
     truck_main_road = 20.0  # Grande route périmétrale
     internal_service_lane = 12.0 # Voie de service entre blocs (longitudinal)
     
+    # Calcul des offsets pour centrer parfaitement les 4 zones (2x2) autour de (0,0)
+    total_grid_width = 2 * block_width + truck_main_road
+    total_grid_length = 2 * block_length + internal_service_lane
+    
+    base_x = -total_grid_width / 2.0 + block_width / 2.0
+    base_y = -total_grid_length / 2.0 + block_length / 2.0
+
     for i, (block_id, block) in enumerate(yard.blocks.items()):
-        # Layout : 2 colonnes de blocs face à face
-        col = i % 2
-        row_in_col = i // 2
+        # Layout exact demandé : A(HD), B(BD), C(HG), D(BG)
+        if block_id == 'A':
+            col, row_in_col = 1, 0  # Droite, Haut
+        elif block_id == 'B':
+            col, row_in_col = 1, 1  # Droite, Bas
+        elif block_id == 'C':
+            col, row_in_col = 0, 0  # Gauche, Haut
+        elif block_id == 'D':
+            col, row_in_col = 0, 1  # Gauche, Bas
+        else:
+            col, row_in_col = i % 2, i // 2
         
-        # Positionnement avec buffer pour routes et grues
-        block.x = col * (block_width + truck_main_road)
-        block.y = row_in_col * (block_length + internal_service_lane)
+        # Positionnement centré
+        block.x = base_x + col * (block_width + truck_main_road)
+        block.y = base_y + row_in_col * (block_length + internal_service_lane)
         block.width = block_width
         block.length = block_length
         block.rotation = 0.0
