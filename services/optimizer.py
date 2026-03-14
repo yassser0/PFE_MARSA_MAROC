@@ -213,9 +213,9 @@ def find_best_slot(
 
     Dans les deux cas : Filtrage Top-K (Greedy) + Recuit Simulé (SA).
     """
-    # --- Passe 1 : EDD strict + Poids strict ---
+    # --- Passe 1 : EDD strict, (Poids négligé selon demande de l'utilisateur) ---
     valid_slots = get_valid_slots(
-        container, yard, allowed_blocks, strict_edd=True, strict_weight=True
+        container, yard, allowed_blocks, strict_edd=True, strict_weight=False
     )
 
     if not valid_slots:
