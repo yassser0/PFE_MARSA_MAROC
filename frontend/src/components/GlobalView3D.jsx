@@ -106,27 +106,27 @@ function SceneContent({ yardData, searchQuery, onSelectContainer }) {
       />
 
       {/* Ground & Water */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[50, -0.05, 100]} receiveShadow>
-        <planeGeometry args={[500, 600]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
+        <planeGeometry args={[250, 250]} />
         <meshStandardMaterial color="#111" roughness={0.9} />
       </mesh>
       
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-150, -1, 100]}>
-        <planeGeometry args={[200, 600]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-150, -1, 0]}>
+        <planeGeometry args={[100, 250]} />
         <meshStandardMaterial color="#001220" roughness={0.1} metalness={0.9} transparent opacity={0.6} />
       </mesh>
       {/* Black asphalt mat underneath the blocks */}
       {yardData?.blocks?.[0] && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, 0]}>
           <planeGeometry args={[
-            2 * yardData.blocks[0].width + 20 + 20, 
-            2 * yardData.blocks[0].length + 12 + 20
+            2 * yardData.blocks[0].width + 20 + 20 + 10, 
+            2 * yardData.blocks[0].length + 12 + 20 + 10
           ]} />
           <meshStandardMaterial color="#111111" roughness={0.9} />
         </mesh>
       )}
 
-      <gridHelper args={[600, 60, '#222', '#222']} position={[50, 0, 100]} />
+      <gridHelper args={[250, 50, '#222', '#222']} position={[0, 0, 0]} />
 
       {/* Blocks & Assets */}
       {yardData?.blocks?.map((block) => (
