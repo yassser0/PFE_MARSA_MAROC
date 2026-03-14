@@ -210,32 +210,47 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
   if (!yardData) return <div className="loading-spinner">Initialisation du Yard...</div>
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080a0c', overflow: 'hidden' }}>
-      {/* Analytics HUD Overlay */}
-      <div className="analytics-hud" style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <div className="hud-card glass" style={{ pointerEvents: 'auto' }}>
-          <label>OCCUPATION GLOBALE</label>
-          <div className="value">{stats.occupancy}%</div>
-          <div className="progress-bg"><div className="progress-fill" style={{ width: `${stats.occupancy}%` }}></div></div>
-        </div>
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080a0c', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Unified Horizontal Header Bar */}
+      <div style={{ padding: '15px' }}>
+        <div className="detail-header-row glass" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          padding: '12px 25px', 
+          borderRadius: '12px',
+          gap: '20px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Vue</label>
+              <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600 }}>GLOBALE</span>
+            </div>
 
-        {/* Row Filter Tool */}
-        <div className="hud-card glass" style={{ pointerEvents: 'auto' }}>
-          <label>VISIBILITÉ RANGÉES</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-            <input 
-              type="range" 
-              min="0" 
-              max={yardData.n_rows} 
-              value={visibleRow} 
-              onChange={(e) => setVisibleRow(parseInt(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ color: '#fff', fontSize: '14px', minWidth: '60px' }}>
-              {visibleRow === 0 ? 'Toutes' : `Rangée ${visibleRow}`}
-            </span>
+            {/* Row Visibility Tool */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingLeft: '20px', borderLeft: '1px solid var(--border)' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Visibilité Rangées</label>
+              <input 
+                type="range" 
+                min="0" 
+                max={yardData.n_rows} 
+                value={visibleRow} 
+                onChange={(e) => setVisibleRow(parseInt(e.target.value))}
+                style={{ width: '120px' }}
+              />
+              <span style={{ fontSize: '0.8rem', color: 'white', minWidth: '50px' }}>
+                {visibleRow === 0 ? 'Toutes' : `R${visibleRow}`}
+              </span>
+            </div>
           </div>
-          <p style={{ fontSize: '10px', color: '#888', margin: '5px 0 0 0' }}>Filtrez pour voir l'intérieur du bloc</p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Occupation Globale</span>
+            <div style={{ width: '150px', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: `${stats.occupancy}%`, height: '100%', background: 'var(--accent-cyan)', transition: 'width 0.5s' }} />
+            </div>
+            <strong style={{ fontSize: '1.1rem', color: 'var(--accent-cyan)' }}>{stats.occupancy}%</strong>
+          </div>
         </div>
       </div>
 

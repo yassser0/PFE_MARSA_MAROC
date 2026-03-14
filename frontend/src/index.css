@@ -46,7 +46,7 @@ html, body, #root {
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text-primary);
-  overflow: hidden;
+  /* overflow: hidden removed to allow global scroll if needed */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -227,8 +227,9 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto; /* Enable page-level scrolling for the main area */
   position: relative;
+  background: var(--bg-primary);
 }
 
 /* ============================================================
@@ -236,11 +237,11 @@ body {
    ============================================================ */
 
 .header {
-  height: var(--header-height);
-  padding: 0 32px;
+  width: 100%;
+  padding: 24px 32px; /* Increased padding */
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 16px; /* Space between title area and KPI grid */
   border-bottom: 1px solid var(--border);
   background: var(--bg-glass);
   backdrop-filter: blur(10px);
@@ -251,7 +252,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
 }
 
 .header-title {
@@ -303,46 +303,51 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px 20px;
-  text-align: center;
+  text-align: left; /* Align left for more professional look */
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: default;
+  position: relative;
+  overflow: hidden;
 }
 
 .kpi-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   border-color: var(--accent-cyan);
-  box-shadow: var(--shadow-glow);
+  background: rgba(0, 253, 255, 0.03);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 253, 255, 0.1);
 }
 
 .kpi-title {
   color: var(--text-secondary);
-  font-size: 0.68rem;
-  font-weight: 500;
+  font-size: 0.65rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 6px;
+  letter-spacing: 1.2px;
+  margin-bottom: 8px;
 }
 
 .kpi-value {
   color: var(--text-primary);
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.8rem;
+  font-weight: 800;
   line-height: 1;
+  letter-spacing: -0.5px;
 }
 
 .kpi-bar {
-  margin-top: 8px;
-  height: 3px;
-  background: rgba(255,255,255,0.08);
+  margin-top: 12px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 2px;
   overflow: hidden;
 }
 
 .kpi-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-green), #36c236);
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 253, 255, 0.5);
   border-radius: 2px;
-  transition: width 0.6s ease;
+  transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ============================================================
@@ -389,11 +394,11 @@ body {
 
 .tab-content {
   flex: 1;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 16px 24px;
   gap: 14px;
+  min-height: 700px; /* Ensure 3D views have room to exist */
 }
 
 .tab-title {

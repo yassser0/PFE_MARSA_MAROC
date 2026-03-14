@@ -1,10 +1,11 @@
-import React, { useMemo, Suspense } from 'react'
+import React, { useMemo, useState, Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { 
   OrbitControls, 
   PerspectiveCamera, 
   Environment, 
   ContactShadows, 
+  Grid,
   Sky, 
   Text
 } from '@react-three/drei'
@@ -50,6 +51,7 @@ function Container({ position, color, data, onSelect, isMatch }) {
 }
 
 export default function BlockDetailView({ yardData, selectedBlock, onBlockChange, searchQuery, onSelectContainer }) {
+  const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
   const blockIds = useMemo(() => yardData?.blocks?.map(b => b.block_id) || [], [yardData])
   const blockData = useMemo(() => yardData?.blocks?.find(b => b.block_id === selectedBlock), [yardData, selectedBlock])
 
@@ -65,18 +67,36 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '15px' }}>
-      <div className="detail-header-row glass" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 25px', borderRadius: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Zone</label>
-          <select 
-            value={selectedBlock} 
-            onChange={e => onBlockChange(e.target.value)}
-            style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '6px', color: 'white' }}
-          >
-            {blockIds.map(id => (
-              <option key={id} value={id}>Bloc {id}</option>
-            ))}
-          </select>
+      <div className="detail-header-row glass" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 25px', borderRadius: '12px', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Zone</label>
+            <select 
+              value={selectedBlock} 
+              onChange={e => { onBlockChange(e.target.value); setVisibleRow(0); }}
+              style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '6px', color: 'white' }}
+            >
+              {blockIds.map(id => (
+                <option key={id} value={id}>Bloc {id}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* New Row Visibility Slider for Detail View */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '20px', borderLeft: '1px solid var(--border)' }}>
+            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Visibilité Rangées</label>
+            <input 
+              type="range" 
+              min="0" 
+              max={yardData.n_rows} 
+              value={visibleRow} 
+              onChange={(e) => setVisibleRow(parseInt(e.target.value))}
+              style={{ width: '100px' }}
+            />
+            <span style={{ fontSize: '0.8rem', color: 'white', minWidth: '40px' }}>
+              {visibleRow === 0 ? 'Toutes' : `R${visibleRow}`}
+            </span>
+          </div>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -115,28 +135,34 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
                 fadeStrength={1}
               />
 
-              {blockData.stacks.map((stack) => (
-                <group key={`${stack.row}-${stack.bay}`} position={[
-                  (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8, 
-                  0, 
-                  (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
-                ]}>
-                  {stack.slots.map((slot) => {
-                    if (slot.is_free) return null;
-                    const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)
-                    return (
-                      <Container 
-                        key={slot.container_id}
-                        position={[0, (slot.tier - 1) * 2.6 + 1.3, 0]}
-                        color={getStatusColor(slot)}
-                        data={{ id: slot.container_id, ...slot.container_details }}
-                        onSelect={onSelectContainer}
-                        isMatch={isMatch}
-                      />
-                    )
-                  })}
-                </group>
-              ))}
+              {blockData.stacks.map((stack) => {
+                // Apply same visibility logic as global view
+                const isTargetRow = visibleRow === 0 || stack.row === visibleRow;
+                if (!isTargetRow) return null;
+
+                return (
+                  <group key={`${stack.row}-${stack.bay}`} position={[
+                    (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8, 
+                    0, 
+                    (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
+                  ]}>
+                    {stack.slots.map((slot) => {
+                      if (slot.is_free) return null;
+                      const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)
+                      return (
+                        <Container 
+                          key={slot.container_id}
+                          position={[0, (slot.tier - 1) * 2.6 + 1.3, 0]}
+                          color={getStatusColor(slot)}
+                          data={{ id: slot.container_id, ...slot.container_details }}
+                          onSelect={onSelectContainer}
+                          isMatch={isMatch}
+                        />
+                      )
+                    })}
+                  </group>
+                )
+              })}
             </group>
             <ContactShadows opacity={0.6} scale={100} blur={2} far={10} color="#000000" />
             <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} />
