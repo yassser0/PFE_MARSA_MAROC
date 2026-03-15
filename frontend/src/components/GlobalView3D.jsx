@@ -39,9 +39,8 @@ function getStatusColor(slot) {
 /**
  * Container component that can use a Blender model or a Box fallback.
  */
-function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.0 }) {
+function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.0, onHover }) {
   const [hovered, setHover] = useState(false)
-  
   if (opacity <= 0) return null; // Fully hidden
 
   return (
@@ -49,9 +48,19 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
       <mesh 
         castShadow 
         receiveShadow 
-        onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer' }} 
-        onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto' }} 
+        onPointerOver={(e) => { 
+          e.stopPropagation(); 
+          setHover(true);
+          onHover(data); 
+          document.body.style.cursor = 'pointer' 
+        }} 
+        onPointerOut={() => { 
+          setHover(false);
+          onHover(null); 
+          document.body.style.cursor = 'auto' 
+        }} 
         onClick={(e) => { e.stopPropagation(); onSelect(data) }}
+        scale={hovered ? 1.02 : 1}
       >
         <boxGeometry args={[2.5, 2.5, 6.1]} />
         <meshStandardMaterial 
@@ -64,37 +73,6 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
           emissive={isMatch || hovered ? '#00fdff' : 'black'}
           emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
         />
-        {(hovered || isMatch) && (
-          <Html center position={[0, 4, 0]} pointerEvents="none">
-            <div style={{
-              background: 'rgba(13, 17, 23, 0.95)',
-              color: 'white',
-              padding: '14px 20px',
-              borderRadius: '10px',
-              border: '1px solid var(--border-cyan)',
-              fontSize: '0.9rem',
-              width: 'max-content',
-              pointerEvents: 'none',
-              boxShadow: '0 15px 50px rgba(0,0,0,0.9)',
-              backdropFilter: 'blur(8px)',
-              lineHeight: '1.5',
-              userSelect: 'none',
-              borderLeft: '5px solid var(--accent-cyan)',
-              transform: 'scale(0.8)' // Slight reduction to be elegant
-            }}>
-              <div style={{ fontWeight: 800, fontSize: '1.1rem', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '8px', color: 'var(--accent-cyan)' }}>{data.id}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '6px 16px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Type:</span> <span>{data.type || 'N/A'}</span>
-                <span style={{ color: 'var(--text-secondary)' }}>Taille:</span> <span>{data.size || 40}ft</span>
-                <span style={{ color: 'var(--text-secondary)' }}>Poids:</span> <span>{data.weight || 0}t</span>
-                <span style={{ color: 'var(--text-secondary)' }}>Départ:</span> <span style={{ fontFamily: 'monospace' }}>{data.departure_time || 'N/A'}</span>
-              </div>
-              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed var(--border)', fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                {data.location?.replace(/-/g, ' • ')}
-              </div>
-            </div>
-          </Html>
-        )}
       </mesh>
     </group>
   )
@@ -146,7 +124,57 @@ function CameraFocus({ targetPos }) {
 
 // --- Main Environment ---
 
-function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) {
+// --- Tooltip HUD component ---
+function TooltipHUD({ data }) {
+  if (!data) return null
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '5px',
+      right: '5px',
+      zIndex: 100,
+      background: 'rgba(13, 17, 23, 0.95)',
+      color: 'white',
+      padding: '12px 16px',
+      borderRadius: '10px',
+      border: '1px solid var(--border-cyan)',
+      fontSize: '0.85rem',
+      width: '260px',
+      boxShadow: '0 15px 40px rgba(0,0,0,0.8)',
+      backdropFilter: 'blur(10px)',
+      lineHeight: '1.4',
+      userSelect: 'none',
+      borderTop: '3px solid var(--accent-cyan)',
+      pointerEvents: 'none',
+      animation: 'fadeInSlide 0.2s ease-out'
+    }}>
+      <div style={{ fontWeight: 800, fontSize: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '8px', color: 'var(--accent-cyan)', letterSpacing: '0.5px' }}>
+        {data.id}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px' }}>
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Type</span> 
+        <span style={{ fontWeight: 500 }}>{data.type || 'N/A'}</span>
+        
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Taille</span> 
+        <span style={{ fontWeight: 500 }}>{data.size || 40}ft</span>
+        
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Poids</span> 
+        <span style={{ color: data.weight > 25 ? 'var(--accent-red)' : 'var(--text-primary)', fontWeight: 600 }}>{data.weight || 0}t</span>
+        
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Départ</span> 
+        <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 500 }}>{data.departure_time || 'N/A'}</span>
+      </div>
+      <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <span style={{ color: 'var(--accent-cyan)', fontSize: '0.65rem', fontWeight: 600 }}>LOCATION</span>
+        <div style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '0.5px' }}>
+          {data.location?.replace(/-/g, ' • ')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, onHover }) {
   return (
     <>
       <Sky inclination={0.1} distance={450000} />
@@ -245,6 +273,7 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) 
                       color={getStatusColor(slot)}
                       data={{ id: slot.container_id, ...slot.container_details }}
                       onSelect={onSelectContainer}
+                      onHover={onHover}
                       isMatch={isMatch}
                       opacity={1.0} // Keep fully opaque for target row
                     />
@@ -264,6 +293,22 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) 
 
 export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, onSelectContainer }) {
   const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
+  const [hoveredContainer, setHoveredContainer] = useState(null)
+
+  // Find search matched container data for HUD persistence
+  const matchedContainerData = useMemo(() => {
+    if (!searchQuery || !yardData) return null
+    for (const block of yardData.blocks) {
+      for (const stack of block.stacks) {
+        for (const slot of stack.slots) {
+          if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
+            return { id: slot.container_id, ...slot.container_details }
+          }
+        }
+      }
+    }
+    return null
+  }, [searchQuery, yardData])
 
   // Auto-focus row on search
   useEffect(() => {
@@ -324,6 +369,10 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080a0c', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* Tooltip HUD Layer */}
+      <TooltipHUD data={hoveredContainer || matchedContainerData} />
+
       {/* Unified Horizontal Header Bar */}
       <div style={{ padding: '15px' }}>
         <div className="detail-header-row glass" style={{ 
@@ -374,6 +423,7 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
             searchQuery={searchQuery} 
             onSelectContainer={onSelectContainer} 
             visibleRow={visibleRow}
+            onHover={setHoveredContainer}
           />
           <CameraFocus targetPos={targetContainerPos} />
           <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={10} maxDistance={400} />
