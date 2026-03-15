@@ -20,7 +20,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContainer, setSelectedContainer] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(new Date())
-  const [perfMode, setPerfMode] = useState(false)
   const intervalRef = useRef(null)
 
   const fetchYardData = useCallback(async () => {
@@ -73,8 +72,6 @@ export default function App() {
         onRefresh={fetchYardData}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        perfMode={perfMode}
-        onPerfModeChange={setPerfMode}
       />
 
       <div className="main-content">
@@ -127,7 +124,6 @@ export default function App() {
             <GlobalView3D
               yardData={yardData}
               searchQuery={searchQuery}
-              perfMode={perfMode}
               onInspectBlock={handleInspectBlock}
               onSelectContainer={setSelectedContainer}
             />
@@ -139,7 +135,6 @@ export default function App() {
               selectedBlock={selectedBlock}
               onBlockChange={setSelectedBlock}
               searchQuery={searchQuery}
-              perfMode={perfMode}
               onSelectContainer={setSelectedContainer}
             />
           )}

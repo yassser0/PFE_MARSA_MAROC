@@ -13,11 +13,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Configuration du Mode Performance ---
-perf_mode = st.sidebar.checkbox("Mode Performance 3D", value=False, help="Dessine des points légers au lieu de cubes complexes. Recommandé pour tester avec > 500 conteneurs.")
-
-
-
 # Constantes API
 API_URL = "http://127.0.0.1:8000"
 
@@ -201,26 +196,6 @@ if yard_data:
         def add_cube_trace(fig, x_coords, y_coords, z_coords, color, name, hover_texts, offset=(0,0)):
             if not x_coords: return
             
-            if perf_mode:
-                # Mode Performance (Scatter3d)
-                X, Y, Z = [], [], []
-                ox, oy = offset
-                for x, y, z in zip(x_coords, y_coords, z_coords):
-                    X.append(x + ox + 0.4)
-                    Y.append(y + oy + 0.4)
-                    Z.append(z + 0.45)
-                
-                scatter = go.Scatter3d(
-                    x=X, y=Y, z=Z,
-                    mode='markers',
-                    marker=dict(symbol='square', size=12, color=color, opacity=0.9),
-                    name=name,
-                    text=hover_texts,
-                    hoverinfo='text' if hover_texts else 'name'
-                )
-                fig.add_trace(scatter)
-                return
-
             X, Y, Z, I, J, K = [], [], [], [], [], []
             dx, dy, dz = 0.8, 1.3, 0.9 
             ox, oy = offset

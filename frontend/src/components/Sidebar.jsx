@@ -3,7 +3,7 @@ import logo from '../assets/logo.png'
 
 export default function Sidebar({
   apiOnline, lastRefresh, onInit, onClear, onRefresh,
-  searchQuery, onSearchChange, perfMode, onPerfModeChange
+  searchQuery, onSearchChange
 }) {
   const [blocks, setBlocks] = useState(4)
   const [bays, setBays] = useState(10)
@@ -46,23 +46,6 @@ export default function Sidebar({
           <h2>Marsa Maroc</h2>
           <span>Yard Optimization</span>
         </div>
-      </div>
-
-      {/* Performance Mode */}
-      <div className="sidebar-section">
-        <div className="sidebar-section-title">Performance</div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          <input
-            type="checkbox"
-            checked={perfMode}
-            onChange={e => onPerfModeChange(e.target.checked)}
-            style={{ accentColor: 'var(--accent-green)' }}
-          />
-          Mode Performance 3D
-        </label>
-        <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-          Utilise des points légers au lieu de cubes (recommandé pour+500 conteneurs)
-        </p>
       </div>
 
       <div className="sidebar-divider" />
