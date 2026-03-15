@@ -15,6 +15,7 @@ import {
 } from '@react-three/drei'
 import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import TooltipHUD from './TooltipHUD'
 
 // --- Constants & Palettes ---
 const STATUS_PALETTE = {
@@ -165,55 +166,6 @@ function CameraFocus({ targetPos }) {
 
 // --- Main Environment ---
 
-// --- Tooltip HUD component ---
-function TooltipHUD({ data }) {
-  if (!data) return null
-  return (
-    <div style={{
-      position: 'absolute',
-      top: '5px',
-      right: '5px',
-      zIndex: 100,
-      background: 'rgba(13, 17, 23, 0.95)',
-      color: 'white',
-      padding: '12px 16px',
-      borderRadius: '10px',
-      border: '1px solid var(--border-cyan)',
-      fontSize: '0.85rem',
-      width: '260px',
-      boxShadow: '0 15px 40px rgba(0,0,0,0.8)',
-      backdropFilter: 'blur(10px)',
-      lineHeight: '1.4',
-      userSelect: 'none',
-      borderTop: '3px solid var(--accent-cyan)',
-      pointerEvents: 'none',
-      animation: 'fadeInSlide 0.2s ease-out'
-    }}>
-      <div style={{ fontWeight: 800, fontSize: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '8px', color: 'var(--accent-cyan)', letterSpacing: '0.5px' }}>
-        {data.id}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px' }}>
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Type</span> 
-        <span style={{ fontWeight: 500 }}>{data.type || 'N/A'}</span>
-        
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Taille</span> 
-        <span style={{ fontWeight: 500 }}>{data.size || 40}ft</span>
-        
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Poids</span> 
-        <span style={{ color: data.weight > 25 ? 'var(--accent-red)' : 'var(--text-primary)', fontWeight: 600 }}>{data.weight || 0}t</span>
-        
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Départ</span> 
-        <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 500 }}>{data.departure_time || 'N/A'}</span>
-      </div>
-      <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        <span style={{ color: 'var(--accent-cyan)', fontSize: '0.65rem', fontWeight: 600 }}>LOCATION</span>
-        <div style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '0.5px' }}>
-          {data.location?.replace(/-/g, ' • ')}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, onHover }) {
   return (
@@ -335,6 +287,16 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
 export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, onSelectContainer }) {
   const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
   const [hoveredContainer, setHoveredContainer] = useState(null)
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+
+  // Track mouse movement for tooltip
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePos({ x: e.clientX, y: e.clientY })
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [])
 
   // Find search matched container data for HUD persistence
   const matchedContainerData = useMemo(() => {
@@ -411,8 +373,11 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080a0c', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       
-      {/* Tooltip HUD Layer */}
-      <TooltipHUD data={hoveredContainer || matchedContainerData} />
+      {/* Tooltip HUD Layer - now floating */}
+      <TooltipHUD 
+        data={hoveredContainer} 
+        mousePos={mousePos}
+      />
 
       {/* Unified Horizontal Header Bar */}
       <div style={{ padding: '15px' }}>

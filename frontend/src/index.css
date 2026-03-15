@@ -809,3 +809,19 @@ body {
   box-shadow: 0 4px 15px rgba(46, 160, 67, 0.4);
   background: #3fb950;
 }
+@keyframes hudPopIn {
+  from { opacity: 0; transform: scale(0.9) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes scanningLine {
+  0% { top: 0; opacity: 0; }
+  5% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+  95% { opacity: 0.5; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.scanning-line {
+  animation: scanningLine 3s linear infinite;
+}
