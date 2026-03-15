@@ -7,7 +7,8 @@ import {
   ContactShadows, 
   Grid,
   Sky, 
-  Text
+  Text,
+  Html
 } from '@react-three/drei'
 import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -58,6 +59,36 @@ function Container({ position, color, data, onSelect, isMatch }) {
         emissive={isMatch || hovered ? '#00fdff' : 'black'}
         emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
       />
+      {hovered && (
+        <Html center distanceFactor={15} position={[0, 4, 0]} pointerEvents="none">
+          <div style={{
+            background: 'rgba(13, 17, 23, 0.95)',
+            color: 'white',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--border-cyan)',
+            fontSize: '0.85rem',
+            width: 'max-content',
+            pointerEvents: 'none',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
+            backdropFilter: 'blur(5px)',
+            lineHeight: '1.4',
+            userSelect: 'none',
+            borderLeft: '4px solid var(--accent-cyan)'
+          }}>
+            <div style={{ fontWeight: 800, fontSize: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '6px', color: 'var(--accent-cyan)' }}>{data.id}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '4px 12px' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Type:</span> <span>{data.type || 'N/A'}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Taille:</span> <span>{data.size || 40}ft</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Poids:</span> <span>{data.weight || 0}t</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Départ:</span> <span>{data.departure_time || 'N/A'}</span>
+            </div>
+            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border)', fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+              {data.location?.replace(/-/g, ' • ')}
+            </div>
+          </div>
+        </Html>
+      )}
     </mesh>
   )
 }
@@ -81,6 +112,48 @@ function CameraFocus({ targetPos }) {
   })
 
   return null
+}
+
+/**
+ * RTG Crane component (Procedural version)
+ */
+function RTGModel({ position, label }) {
+  return (
+    <group position={position}>
+      {/* Legs */}
+      <mesh position={[-6, 6, 0]} castShadow> 
+        <boxGeometry args={[0.8, 12, 1.2]} /> 
+        <meshStandardMaterial color="#ebc034" metalness={0.7} roughness={0.3} /> 
+      </mesh>
+      <mesh position={[6, 6, 0]} castShadow> 
+        <boxGeometry args={[0.8, 12, 1.2]} /> 
+        <meshStandardMaterial color="#ebc034" metalness={0.7} roughness={0.3} /> 
+      </mesh>
+      {/* Top Beam */}
+      <mesh position={[0, 12, 0]} castShadow> 
+        <boxGeometry args={[13, 1, 3]} /> 
+        <meshStandardMaterial color="#ebc034" metalness={0.7} roughness={0.3} /> 
+      </mesh>
+      {/* Trolley */}
+      <mesh position={[0, 11, 0]}> 
+        <boxGeometry args={[2, 0.5, 2]} /> 
+        <meshStandardMaterial color="#333" /> 
+      </mesh>
+
+      {/* Block Identification Label */}
+      <Text
+        position={[0, 15, 0]}
+        fontSize={8}
+        color="#FFFFFF"
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={0.5}
+        outlineColor="#000000"
+      >
+        {label}
+      </Text>
+    </group>
+  )
 }
 
 export default function BlockDetailView({ yardData, selectedBlock, onBlockChange, searchQuery, onSelectContainer }) {
@@ -202,6 +275,8 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
                 fadeDistance={80}
                 fadeStrength={1}
               />
+
+              <RTGModel position={[0, 0, 0]} label={selectedBlock} />
 
               {blockData.stacks.map((stack) => {
                 // Force visibility if stack contains the searched container
