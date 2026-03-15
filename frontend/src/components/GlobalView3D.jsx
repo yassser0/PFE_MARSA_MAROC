@@ -64,31 +64,32 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
           emissive={isMatch || hovered ? '#00fdff' : 'black'}
           emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
         />
-        {hovered && (
-          <Html center distanceFactor={15} position={[0, 4, 0]} pointerEvents="none">
+        {(hovered || isMatch) && (
+          <Html center position={[0, 4, 0]} pointerEvents="none">
             <div style={{
               background: 'rgba(13, 17, 23, 0.95)',
               color: 'white',
-              padding: '12px 16px',
-              borderRadius: '8px',
+              padding: '14px 20px',
+              borderRadius: '10px',
               border: '1px solid var(--border-cyan)',
-              fontSize: '0.85rem',
+              fontSize: '0.9rem',
               width: 'max-content',
               pointerEvents: 'none',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
-              backdropFilter: 'blur(5px)',
-              lineHeight: '1.4',
+              boxShadow: '0 15px 50px rgba(0,0,0,0.9)',
+              backdropFilter: 'blur(8px)',
+              lineHeight: '1.5',
               userSelect: 'none',
-              borderLeft: '4px solid var(--accent-cyan)'
+              borderLeft: '5px solid var(--accent-cyan)',
+              transform: 'scale(0.8)' // Slight reduction to be elegant
             }}>
-              <div style={{ fontWeight: 800, fontSize: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '6px', color: 'var(--accent-cyan)' }}>{data.id}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '4px 12px' }}>
+              <div style={{ fontWeight: 800, fontSize: '1.1rem', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '8px', color: 'var(--accent-cyan)' }}>{data.id}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '6px 16px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Type:</span> <span>{data.type || 'N/A'}</span>
                 <span style={{ color: 'var(--text-secondary)' }}>Taille:</span> <span>{data.size || 40}ft</span>
                 <span style={{ color: 'var(--text-secondary)' }}>Poids:</span> <span>{data.weight || 0}t</span>
-                <span style={{ color: 'var(--text-secondary)' }}>Départ:</span> <span>{data.departure_time || 'N/A'}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Départ:</span> <span style={{ fontFamily: 'monospace' }}>{data.departure_time || 'N/A'}</span>
               </div>
-              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border)', fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed var(--border)', fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 700 }}>
                 {data.location?.replace(/-/g, ' • ')}
               </div>
             </div>
