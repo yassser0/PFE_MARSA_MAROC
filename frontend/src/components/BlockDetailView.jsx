@@ -31,25 +31,56 @@ function getStatusColor(slot) {
 }
 
 function Container({ position, color, data, onSelect, isMatch }) {
+  const [hovered, setHover] = useState(false)
+  
   return (
     <mesh 
       position={position} 
       castShadow 
       receiveShadow 
       onClick={() => onSelect(data)} 
-      onPointerOver={() => (document.body.style.cursor = 'pointer')} 
-      onPointerOut={() => (document.body.style.cursor = 'auto')}
+      onPointerOver={(e) => {
+        e.stopPropagation()
+        setHover(true)
+        document.body.style.cursor = 'pointer'
+      }} 
+      onPointerOut={() => {
+        setHover(false)
+        document.body.style.cursor = 'auto'
+      }}
+      scale={hovered ? 1.02 : 1}
     >
       <boxGeometry args={[2.5, 2.5, 6.1]} />
       <meshStandardMaterial 
         color={isMatch ? '#00fdff' : color} 
         metalness={0.6} 
         roughness={0.4}
-        emissive={isMatch ? '#00fdff' : 'black'}
-        emissiveIntensity={isMatch ? 0.3 : 0}
+        emissive={isMatch || hovered ? '#00fdff' : 'black'}
+        emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
       />
     </mesh>
   )
+}
+
+function CameraFocus({ targetPos }) {
+  const { camera, controls } = useThree()
+  
+  useFrame(() => {
+    if (!targetPos || !controls) return
+
+    const targetVec = new THREE.Vector3(...targetPos)
+    controls.target.lerp(targetVec, 0.1)
+    
+    const desiredCamPos = new THREE.Vector3(
+      targetVec.x + 20,
+      targetVec.y + 20,
+      targetVec.z + 20
+    )
+    camera.position.lerp(desiredCamPos, 0.05)
+    controls.update()
+  })
+
+  return null
 }
 
 export default function BlockDetailView({ yardData, selectedBlock, onBlockChange, searchQuery, onSelectContainer }) {
