@@ -53,7 +53,7 @@ export default function App() {
   }
 
   const handleClearYard = async () => {
-    await axios.post(`${API_URL}/yard/init`, { blocks: 4, bays: 24, rows: 6, max_height: 5 }).catch(() => {})
+    await axios.post(`${API_URL}/yard/init`, { blocks: 4, bays: 24, rows: 6, max_height: 5 }).catch(() => { })
     await fetchYardData()
   }
 
@@ -80,7 +80,7 @@ export default function App() {
           <div className="header-top">
             <h1 className="header-title">
               <img src={logo} alt="Marsa Maroc" style={{ height: '32px', marginRight: '12px', verticalAlign: 'middle' }} />
-              Marsa Maroc — Yard Intelligence
+              Marsa Maroc — Yard Optimization
             </h1>
             <div className="connection-status">
               <div className={`status-dot ${apiOnline ? '' : 'offline'}`} />
@@ -145,9 +145,9 @@ export default function App() {
         </div>
       </div>
 
-      <ContainerInfoDrawer 
-        container={selectedContainer} 
-        onClose={() => setSelectedContainer(null)} 
+      <ContainerInfoDrawer
+        container={selectedContainer}
+        onClose={() => setSelectedContainer(null)}
       />
     </div>
   )

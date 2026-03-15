@@ -43,7 +43,7 @@ export default function Sidebar({
       <div className="sidebar-logo">
         <img src={logo} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
         <div>
-          <h2>Marsa Maroc</h2>
+          <h2>MM</h2>
           <span>Yard Optimization</span>
         </div>
       </div>
