@@ -9,8 +9,10 @@ import {
   Text,
   Grid,
   useGLTF,
-  Clone
+  Clone,
+  useHelper
 } from '@react-three/drei'
+import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 // --- Constants & Palettes ---
@@ -81,6 +83,33 @@ function RTGModel({ position }) {
       <mesh position={[0, 11, 0]}> <boxGeometry args={[2, 0.5, 2]} /> <meshStandardMaterial color="#333" /> </mesh>
     </group>
   )
+}
+
+/**
+ * Camera Focus Controller (Fly-To)
+ */
+function CameraFocus({ targetPos }) {
+  const { camera, controls } = useThree()
+  
+  useFrame((state, delta) => {
+    if (!targetPos || !controls) return
+
+    // Interpolate target
+    const targetVec = new THREE.Vector3(...targetPos)
+    controls.target.lerp(targetVec, 0.1)
+    
+    // Interpolate camera position (offset for viewing angle)
+    const desiredCamPos = new THREE.Vector3(
+      targetVec.x + 30,
+      targetVec.y + 30,
+      targetVec.z + 30
+    )
+    camera.position.lerp(desiredCamPos, 0.05)
+    
+    controls.update()
+  })
+
+  return null
 }
 
 // --- Main Environment ---
@@ -160,8 +189,12 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) 
           <RTGModel position={[0, 0, 0]} />
 
           {block.stacks.map((stack) => {
-            // Hard Filtering: If a row is selected, completely hide others
-            const isTargetRow = visibleRow === 0 || stack.row === visibleRow;
+            // Force visibility if stack contains the searched container
+            const hasSearchMatch = searchQuery && stack.slots.some(s => 
+              !s.is_free && (s.container_id === searchQuery || s.container_details?.location === searchQuery)
+            );
+            const isTargetRow = visibleRow === 0 || stack.row === visibleRow || hasSearchMatch;
+            
             if (!isTargetRow) return null; 
 
             return (
@@ -215,6 +248,26 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
       alerts: filled > totalSlots * 0.8 ? 1 : 0
     }
   }, [yardData])
+
+  // Find target position for Fly-To
+  const targetContainerPos = useMemo(() => {
+    if (!searchQuery || !yardData) return null
+    
+    for (const block of yardData.blocks) {
+      for (const stack of block.stacks) {
+        for (const slot of stack.slots) {
+          if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
+            return [
+              block.x + (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8,
+              (slot.tier - 1) * 2.6 + 1.3,
+              block.y + (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
+            ]
+          }
+        }
+      }
+    }
+    return null
+  }, [searchQuery, yardData])
 
   if (!yardData) return <div className="loading-spinner">Initialisation du Yard...</div>
 
@@ -271,7 +324,8 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
             onSelectContainer={onSelectContainer} 
             visibleRow={visibleRow}
           />
-          <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={20} maxDistance={200} />
+          <CameraFocus targetPos={targetContainerPos} />
+          <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={10} maxDistance={400} />
         </Suspense>
       </Canvas>
 

@@ -9,6 +9,8 @@ import {
   Sky, 
   Text
 } from '@react-three/drei'
+import { useThree, useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
 
 // --- Co-shared logic with GlobalView ---
 const STATUS_PALETTE = {
@@ -54,6 +56,22 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
   const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
   const blockIds = useMemo(() => yardData?.blocks?.map(b => b.block_id) || [], [yardData])
   const blockData = useMemo(() => yardData?.blocks?.find(b => b.block_id === selectedBlock), [yardData, selectedBlock])
+
+  const targetContainerPos = useMemo(() => {
+    if (!searchQuery || !blockData) return null
+    for (const stack of blockData.stacks) {
+      for (const slot of stack.slots) {
+        if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
+          return [
+            (stack.row - 1 - yardData.n_rows / 2 + 0.5) * 2.8,
+            (slot.tier - 1) * 2.6 + 1.3,
+            (stack.bay - 1 - yardData.n_bays / 2 + 0.5) * 6.4
+          ]
+        }
+      }
+    }
+    return null
+  }, [searchQuery, blockData, yardData])
 
   if (!yardData) return <div className="glass" style={{ padding: '20px' }}>Chargement des données...</div>
   
@@ -136,8 +154,12 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
               />
 
               {blockData.stacks.map((stack) => {
-                // Apply same visibility logic as global view
-                const isTargetRow = visibleRow === 0 || stack.row === visibleRow;
+                // Force visibility if stack contains the searched container
+                const hasSearchMatch = searchQuery && stack.slots.some(s => 
+                  !s.is_free && (s.container_id === searchQuery || s.container_details?.location === searchQuery)
+                );
+                const isTargetRow = visibleRow === 0 || stack.row === visibleRow || hasSearchMatch;
+                
                 if (!isTargetRow) return null;
 
                 return (
@@ -164,6 +186,7 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
                 )
               })}
             </group>
+            <CameraFocus targetPos={targetContainerPos} />
             <ContactShadows opacity={0.6} scale={100} blur={2} far={10} color="#000000" />
             <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} />
           </Suspense>
