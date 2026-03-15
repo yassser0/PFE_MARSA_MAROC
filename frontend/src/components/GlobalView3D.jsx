@@ -7,6 +7,7 @@ import {
   ContactShadows, 
   Sky, 
   Text,
+  Grid,
   useGLTF,
   Clone
 } from '@react-three/drei'
@@ -87,12 +88,12 @@ function RTGModel({ position }) {
 function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) {
   return (
     <>
-      <Sky distance={450000} sunPosition={[10, 20, 10]} inclination={0} azimuth={0.25} />
+      <Sky inclination={0.1} distance={450000} />
       <Environment preset="night" />
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={0.5} />
       <directionalLight 
-        position={[100, 150, 100]} 
-        intensity={1.5} 
+        position={[20, 50, 20]} 
+        intensity={1.2} 
         castShadow 
         shadow-mapSize={[2048, 2048]} 
       />
@@ -121,11 +122,19 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) 
           <group position={[centerX, -0.04, centerZ]}>
             <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
               <planeGeometry args={[width, length]} />
-              <meshStandardMaterial color="#0a0c0e" roughness={0.9} />
+              <meshStandardMaterial color="#050505" roughness={0.7} metalness={0.8} />
             </mesh>
-            <gridHelper 
-              args={[Math.max(width, length), 20, '#222', '#1a1a1a']} 
-              position={[0, 0.01, 0]} 
+            <Grid
+              position={[0, 0.01, 0]}
+              args={[Math.max(width, length) * 2, Math.max(width, length) * 2]}
+              cellSize={2}
+              cellThickness={1}
+              cellColor="#111"
+              sectionSize={10}
+              sectionThickness={1.5}
+              sectionColor="#222"
+              fadeDistance={80}
+              fadeStrength={1}
             />
           </group>
         )
@@ -181,7 +190,7 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) 
           })}
         </group>
       ))}
-      <ContactShadows opacity={0.4} scale={500} blur={2} far={10} color="#000000" />
+      <ContactShadows opacity={0.6} scale={500} blur={2} far={10} color="#000000" />
     </>
   )
 }
