@@ -42,6 +42,26 @@ export default function App() {
     return () => clearInterval(intervalRef.current)
   }, [fetchYardData])
 
+  // Auto-select container on search match
+  useEffect(() => {
+    if (!searchQuery || !yardData) {
+      setSelectedContainer(null)
+      return
+    }
+
+    // Search globally across all blocks
+    for (const block of yardData.blocks) {
+      for (const stack of block.stacks) {
+        for (const slot of stack.slots) {
+          if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
+            setSelectedContainer({ id: slot.container_id, ...slot.container_details })
+            return
+          }
+        }
+      }
+    }
+  }, [searchQuery, yardData])
+
   const handleInitYard = async (config) => {
     try {
       const res = await axios.post(`${API_URL}/yard/init`, config)

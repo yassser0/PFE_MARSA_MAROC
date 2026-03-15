@@ -1,4 +1,4 @@
-import React, { useMemo, useState, Suspense } from 'react'
+import React, { useMemo, useState, Suspense, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { 
   OrbitControls, 
@@ -232,6 +232,25 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow }) 
 
 export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, onSelectContainer }) {
   const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
+
+  // Auto-focus row on search
+  useEffect(() => {
+    if (!searchQuery || !yardData) {
+      setVisibleRow(0)
+      return
+    }
+
+    for (const block of yardData.blocks) {
+      for (const stack of block.stacks) {
+        for (const slot of stack.slots) {
+          if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
+            setVisibleRow(stack.row)
+            return
+          }
+        }
+      }
+    }
+  }, [searchQuery, yardData])
   
   const stats = useMemo(() => {
     if (!yardData) return { occupancy: 0, count: 0, alerts: 0 }

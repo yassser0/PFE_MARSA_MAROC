@@ -1,4 +1,4 @@
-import React, { useMemo, useState, Suspense } from 'react'
+import React, { useMemo, useState, Suspense, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { 
   OrbitControls, 
@@ -54,6 +54,25 @@ function Container({ position, color, data, onSelect, isMatch }) {
 
 export default function BlockDetailView({ yardData, selectedBlock, onBlockChange, searchQuery, onSelectContainer }) {
   const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
+
+  // Auto-focus row on search
+  useEffect(() => {
+    if (!searchQuery || !yardData) {
+      setVisibleRow(0)
+      return
+    }
+    const blockData = yardData?.blocks?.find(b => b.block_id === selectedBlock)
+    if (!blockData) return
+
+    for (const stack of blockData.stacks) {
+      for (const slot of stack.slots) {
+        if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
+          setVisibleRow(stack.row)
+          return
+        }
+      }
+    }
+  }, [searchQuery, yardData, selectedBlock])
   const blockIds = useMemo(() => yardData?.blocks?.map(b => b.block_id) || [], [yardData])
   const blockData = useMemo(() => yardData?.blocks?.find(b => b.block_id === selectedBlock), [yardData, selectedBlock])
 
