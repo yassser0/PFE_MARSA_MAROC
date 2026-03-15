@@ -33,6 +33,25 @@ function getStatusColor(slot) {
 
 function Container({ position, color, data, onSelect, isMatch, onHover }) {
   const [hovered, setHover] = useState(false)
+  const [pulse, setPulse] = useState(false)
+  const [highlight, setHighlight] = useState(false)
+
+  // Trigger pulse and highlight animation when search match occurs
+  useEffect(() => {
+    if (isMatch) {
+      setPulse(true)
+      setHighlight(true)
+      const pulseTimer = setTimeout(() => setPulse(false), 800)
+      const highlightTimer = setTimeout(() => setHighlight(false), 3000)
+      return () => {
+        clearTimeout(pulseTimer)
+        clearTimeout(highlightTimer)
+      }
+    } else {
+      setHighlight(false)
+      setPulse(false)
+    }
+  }, [isMatch])
   
   return (
     <group position={position}>
@@ -54,37 +73,56 @@ function Container({ position, color, data, onSelect, isMatch, onHover }) {
           onHover(null)
           document.body.style.cursor = 'auto'
         }}
-        scale={hovered ? 1.02 : 1}
+        scale={hovered ? 1.03 : pulse ? 1.15 : 1}
       >
         <boxGeometry args={[2.5, 2.5, 6.1]} />
         <meshStandardMaterial 
-          color={isMatch ? '#00fdff' : color} 
+          color={highlight ? '#00fdff' : color} 
           metalness={0.6} 
           roughness={0.4}
-          emissive={isMatch || hovered ? '#00fdff' : 'black'}
-          emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
+          emissive={highlight || hovered ? '#00fdff' : 'black'}
+          emissiveIntensity={highlight ? 0.8 : hovered ? 0.3 : 0}
         />
       </mesh>
     </group>
   )
 }
 
+/**
+ * Camera Focus Controller (Fly-To) 
+ * Releases control after 2s or when target reached
+ */
 function CameraFocus({ targetPos }) {
   const { camera, controls } = useThree()
+  const [active, setActive] = useState(false)
+  const lastTarget = React.useRef(null)
+
+  useEffect(() => {
+    if (targetPos && JSON.stringify(targetPos) !== JSON.stringify(lastTarget.current)) {
+      setActive(true)
+      lastTarget.current = targetPos
+      const timer = setTimeout(() => setActive(false), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [targetPos])
   
-  useFrame(() => {
-    if (!targetPos || !controls) return
+  useFrame((state, delta) => {
+    if (!active || !targetPos || !controls) return
 
     const targetVec = new THREE.Vector3(...targetPos)
     controls.target.lerp(targetVec, 0.1)
     
     const desiredCamPos = new THREE.Vector3(
-      targetVec.x + 20,
-      targetVec.y + 20,
-      targetVec.z + 20
+      targetVec.x + 35,
+      targetVec.y + 35,
+      targetVec.z + 35
     )
     camera.position.lerp(desiredCamPos, 0.05)
+    
     controls.update()
+    if (camera.position.distanceTo(desiredCamPos) < 0.5) {
+      setActive(false)
+    }
   })
 
   return null

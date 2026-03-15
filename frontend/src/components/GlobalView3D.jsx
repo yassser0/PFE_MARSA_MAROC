@@ -41,6 +41,27 @@ function getStatusColor(slot) {
  */
 function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.0, onHover }) {
   const [hovered, setHover] = useState(false)
+  const [pulse, setPulse] = useState(false)
+  const [highlight, setHighlight] = useState(false)
+
+  // Trigger pulse and highlight animation when search match occurs
+  useEffect(() => {
+    if (isMatch) {
+      setPulse(true)
+      setHighlight(true)
+      // Pulse is fast, highlight stays a bit longer
+      const pulseTimer = setTimeout(() => setPulse(false), 800)
+      const highlightTimer = setTimeout(() => setHighlight(false), 3000)
+      return () => {
+        clearTimeout(pulseTimer)
+        clearTimeout(highlightTimer)
+      }
+    } else {
+      setHighlight(false)
+      setPulse(false)
+    }
+  }, [isMatch])
+
   if (opacity <= 0) return null; // Fully hidden
 
   return (
@@ -60,18 +81,18 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
           document.body.style.cursor = 'auto' 
         }} 
         onClick={(e) => { e.stopPropagation(); onSelect(data) }}
-        scale={hovered ? 1.02 : 1}
+        scale={hovered ? 1.03 : pulse ? 1.15 : 1}
       >
         <boxGeometry args={[2.5, 2.5, 6.1]} />
         <meshStandardMaterial 
-          color={isMatch ? '#00fdff' : color} 
+          color={highlight ? '#00fdff' : color} 
           metalness={0.6} 
           roughness={0.4}
           transparent={opacity < 1}
           opacity={opacity}
           depthWrite={opacity >= 1} // CRITICAL: disable depthWrite for transparent objects
-          emissive={isMatch || hovered ? '#00fdff' : 'black'}
-          emissiveIntensity={isMatch ? 0.6 : hovered ? 0.3 : 0}
+          emissive={highlight || hovered ? '#00fdff' : 'black'}
+          emissiveIntensity={highlight ? 0.8 : hovered ? 0.3 : 0}
         />
       </mesh>
     </group>
@@ -97,26 +118,46 @@ function RTGModel({ position }) {
 
 /**
  * Camera Focus Controller (Fly-To)
+ * Modified to release control after movement
  */
 function CameraFocus({ targetPos }) {
   const { camera, controls } = useThree()
+  const [active, setActive] = useState(false)
+  const lastTarget = React.useRef(null)
+
+  useEffect(() => {
+    if (targetPos && JSON.stringify(targetPos) !== JSON.stringify(lastTarget.current)) {
+      setActive(true)
+      lastTarget.current = targetPos
+      
+      // Auto-release after 2 seconds to allow user control
+      const timer = setTimeout(() => setActive(false), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [targetPos])
   
   useFrame((state, delta) => {
-    if (!targetPos || !controls) return
+    if (!active || !targetPos || !controls) return
 
-    // Interpolate target
     const targetVec = new THREE.Vector3(...targetPos)
+    
+    // Smoothly interpolate target
     controls.target.lerp(targetVec, 0.1)
     
-    // Interpolate camera position (offset for viewing angle)
+    // Smoothly interpolate camera position
     const desiredCamPos = new THREE.Vector3(
-      targetVec.x + 30,
-      targetVec.y + 30,
-      targetVec.z + 30
+      targetVec.x + 35,
+      targetVec.y + 35,
+      targetVec.z + 35
     )
     camera.position.lerp(desiredCamPos, 0.05)
     
     controls.update()
+
+    // Stop if very close
+    if (camera.position.distanceTo(desiredCamPos) < 0.5) {
+      setActive(false)
+    }
   })
 
   return null
