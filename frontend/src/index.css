@@ -84,8 +84,9 @@ body {
 }
 
 .sidebar-logo img {
-  width: 36px;
-  height: 36px;
+  height: 40px;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
 }
 

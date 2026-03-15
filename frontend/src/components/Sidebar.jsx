@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import logo from '../assets/logo.png'
 
 export default function Sidebar({
   apiOnline, lastRefresh, onInit, onClear, onRefresh,
@@ -40,7 +41,7 @@ export default function Sidebar({
     <aside className="sidebar">
       {/* Logo */}
       <div className="sidebar-logo">
-        <span style={{ fontSize: '1.8rem' }}>⚓</span>
+        <img src={logo} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
         <div>
           <h2>Marsa Maroc</h2>
           <span>Yard Optimization</span>

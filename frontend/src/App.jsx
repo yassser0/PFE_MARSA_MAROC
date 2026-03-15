@@ -6,6 +6,7 @@ import GlobalView3D from './components/GlobalView3D'
 import BlockDetailView from './components/BlockDetailView'
 import AnalyticsView from './components/AnalyticsView'
 import ContainerInfoDrawer from './components/ContainerInfoDrawer'
+import logo from './assets/logo.png'
 
 const API_URL = 'http://127.0.0.1:8000'
 const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique']
@@ -80,7 +81,10 @@ export default function App() {
         {/* KPI Header */}
         <header className="header">
           <div className="header-top">
-            <h1 className="header-title">⚓ Marsa Maroc — Yard Intelligence</h1>
+            <h1 className="header-title">
+              <img src={logo} alt="Marsa Maroc" style={{ height: '32px', marginRight: '12px', verticalAlign: 'middle' }} />
+              Marsa Maroc — Yard Intelligence
+            </h1>
             <div className="connection-status">
               <div className={`status-dot ${apiOnline ? '' : 'offline'}`} />
               <span style={{ color: 'var(--text-secondary)' }}>
