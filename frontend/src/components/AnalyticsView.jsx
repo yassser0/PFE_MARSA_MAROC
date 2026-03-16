@@ -2,31 +2,42 @@ import { useMemo } from 'react'
 import Plot from 'react-plotly.js'
 
 export default function AnalyticsView({ yardData }) {
-  // Optimization Alerts Logic
-  const alerts = useMemo(() => {
-    const list = []
-    yardData.blocks.forEach(b => {
-      if (b.occupancy > 0.8) {
-        list.push({ type: 'danger', message: `BLOC ${b.block_id}: Densité critique (${Math.round(b.occupancy * 100)}%). Risque de congestion élevé.` })
-      } else if (b.occupancy > 0.6) {
-        list.push({ type: 'warning', message: `BLOC ${b.block_id}: Volume important. Envisager un rééquilibrage vers zones moins denses.` })
-      }
-    })
-    
-    // Check for height consistency (optimization alert)
-    const unevenStacks = yardData.blocks.some(b => {
-      const heights = b.stacks.map(s => s.slots.filter(sl => !sl.is_free).length)
-      const max = Math.max(...heights)
-      const min = Math.min(...heights)
-      return (max - min) > 3
-    })
-    
-    if (unevenStacks) {
-      list.push({ type: 'info', message: "OPTI: Piles hétérogènes détectées. Un lissage des hauteurs améliorerait la productivité RTG." })
-    }
+  // Bar Chart - Occupancy per block
+  const occupancyBarData = useMemo(() => {
+    const labels = yardData.blocks.map(b => `Bloc ${b.block_id}`)
+    const values = yardData.blocks.map(b => b.occupancy * 100)
+    const colors = values.map(v => v > 90 ? '#f85149' : v > 70 ? '#d29922' : '#3fb950')
 
-    return list
+    return [{
+      x: labels,
+      y: values,
+      type: 'bar',
+      marker: {
+        color: colors,
+        line: { color: 'rgba(255,255,255,0.1)', width: 1 }
+      },
+      hovertemplate: '<b>%{x}</b><br>Occupation: %{y:.1f}%<extra></extra>',
+    }]
   }, [yardData])
+
+  const barLayout = useMemo(() => ({
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(255,255,255,0.02)',
+    margin: { t: 30, b: 40, l: 40, r: 20 },
+    xaxis: {
+      color: '#8B949E',
+      gridcolor: 'rgba(255,255,255,0.05)',
+      tickfont: { size: 10, weight: 'bold' }
+    },
+    yaxis: {
+      color: '#8B949E',
+      gridcolor: 'rgba(255,255,255,0.05)',
+      range: [0, 100],
+      ticksuffix: '%'
+    },
+    font: { color: '#8B949E', family: 'Inter, sans-serif' },
+    showlegend: false
+  }), [])
 
   // Heatmap - Block occupancy matrix
   const heatmapData = useMemo(() => {
@@ -105,30 +116,20 @@ export default function AnalyticsView({ yardData }) {
 
   return (
     <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.2fr 1fr', gridTemplateRows: '1.2fr 1fr', gap: '20px', minHeight: 0 }}>
-      {/* Optimization Alerts */}
+      {/* Occupancy Bar Chart Case */}
       <div className="analytics-panel glass" style={{ gridRow: 'span 2', display: 'flex', flexDirection: 'column' }}>
-        <div className="analytics-panel-title">⚠️ ALERTES D'OPTIMISATION & TOS</div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {alerts.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--accent-green)', opacity: 0.6 }}>
-               Tous les indicateurs sont au vert. Yard optimisé.
-            </div>
-          ) : (
-            alerts.map((alert, i) => (
-              <div key={i} className={`alert-item ${alert.type}`} style={{
-                padding: '12px 15px',
-                borderRadius: '8px',
-                fontSize: '0.8rem',
-                borderLeft: `4px solid ${alert.type === 'danger' ? 'var(--accent-red)' : alert.type === 'warning' ? 'var(--accent-orange)' : 'var(--accent-blue)'}`,
-                background: 'rgba(255,255,255,0.03)'
-              }}>
-                {alert.message}
-              </div>
-            ))
-          )}
+        <div className="analytics-panel-title">📊 RÉPARTITION DE LA CHARGE PAR BLOC</div>
+        <div className="chart-inner" style={{ flex: 1, minHeight: 0, padding: '10px' }}>
+          <Plot
+            data={occupancyBarData}
+            layout={barLayout}
+            config={plotConfig}
+            style={{ width: '100%', height: '100%' }}
+            useResizeHandler
+          />
         </div>
         <div className="analytics-panel-footer" style={{ padding: '15px', borderTop: '1px solid var(--border)', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-          Mise à jour temps réel via Engine TOS v2.1
+
         </div>
       </div>
 
