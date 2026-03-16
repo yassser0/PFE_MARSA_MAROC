@@ -42,22 +42,6 @@ export default function App() {
     return () => clearInterval(intervalRef.current)
   }, [fetchYardData])
 
-  // Auto-select container on search match
-  useEffect(() => {
-    if (!searchQuery) return // Don't clear manual selection if search is empty
-
-    // Search globally across all blocks
-    for (const block of yardData?.blocks || []) {
-      for (const stack of block.stacks) {
-        for (const slot of stack.slots) {
-          if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
-            setSelectedContainer({ id: slot.container_id, ...slot.container_details })
-            return
-          }
-        }
-      }
-    }
-  }, [searchQuery, yardData])
 
   const handleInitYard = async (config) => {
     try {

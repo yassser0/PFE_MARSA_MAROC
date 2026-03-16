@@ -298,20 +298,6 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
     return () => window.removeEventListener('mousemove', handleMouseMove)
   }, [])
 
-  // Find search matched container data for HUD persistence
-  const matchedContainerData = useMemo(() => {
-    if (!searchQuery || !yardData) return null
-    for (const block of yardData.blocks) {
-      for (const stack of block.stacks) {
-        for (const slot of stack.slots) {
-          if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
-            return { id: slot.container_id, ...slot.container_details }
-          }
-        }
-      }
-    }
-    return null
-  }, [searchQuery, yardData])
 
   // Auto-focus row on search
   useEffect(() => {

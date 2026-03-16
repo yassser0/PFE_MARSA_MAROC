@@ -205,20 +205,6 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
     }
   }, [searchQuery, yardData, selectedBlock])
 
-  // Current matched container
-  const matchedContainerData = useMemo(() => {
-    if (!searchQuery || !yardData) return null
-    const bData = yardData?.blocks?.find(b => b.block_id === selectedBlock)
-    if (!bData) return null
-    for (const stack of bData.stacks) {
-      for (const slot of stack.slots) {
-        if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
-          return { id: slot.container_id, ...slot.container_details }
-        }
-      }
-    }
-    return null
-  }, [searchQuery, yardData, selectedBlock])
   const blockIds = useMemo(() => yardData?.blocks?.map(b => b.block_id) || [], [yardData])
   const blockData = useMemo(() => yardData?.blocks?.find(b => b.block_id === selectedBlock), [yardData, selectedBlock])
 
