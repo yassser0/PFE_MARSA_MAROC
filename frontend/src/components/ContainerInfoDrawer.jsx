@@ -227,24 +227,31 @@ export default function ContainerInfoDrawer({ container, onClose }) {
             fontWeight: 900, 
             letterSpacing: '2px', 
             color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
+            display: 'inline-block',
+            padding: '4px 12px',
+            background: '#003db3', // Blue background from image 2
+            borderRadius: '4px',
+            marginBottom: '16px'
           }}>
-            {container.location?.split('-').map((part, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <span style={{ opacity: 0.15, fontSize: '1.2rem' }}>/</span>}
-                <span style={{ background: i === 0 ? 'rgba(0, 253, 255, 0.05)' : 'transparent', padding: '4px 8px', borderRadius: '4px' }}>
-                  {part}
-                </span>
-              </React.Fragment>
-            ))}
+            {container.location || 'YARD • UNK'}
           </div>
           
-          <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-             <span style={{ padding: '4px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', fontSize: '0.6rem', color: 'var(--text-secondary)', fontWeight: 700 }}>BLOCK {container.location?.split('-')[0]}</span>
-             <span style={{ padding: '4px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', fontSize: '0.6rem', color: 'var(--text-secondary)', fontWeight: 700 }}>STACK {container.location?.split('-')[1]}</span>
-             <span style={{ padding: '4px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', fontSize: '0.6rem', color: 'var(--text-secondary)', fontWeight: 700 }}>TIER {container.location?.split('-')[3]}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Structure</span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <span style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', fontSize: '0.7rem', color: '#fff', fontWeight: 700, border: '1px solid rgba(255,255,255,0.1)' }}>
+                [BLOC]
+              </span>
+              <span style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', fontSize: '0.7rem', color: '#fff', fontWeight: 700, border: '1px solid rgba(255,255,255,0.1)' }}>
+                [TRAVÉE]
+              </span>
+              <span style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', fontSize: '0.7rem', color: '#fff', fontWeight: 700, border: '1px solid rgba(255,255,255,0.1)' }}>
+                [CELLULE]
+              </span>
+              <span style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', fontSize: '0.7rem', color: '#fff', fontWeight: 700, border: '1px solid rgba(255,255,255,0.1)' }}>
+                [NIVEAU]
+              </span>
+            </div>
           </div>
         </div>
       </div>

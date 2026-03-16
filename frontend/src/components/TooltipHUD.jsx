@@ -140,12 +140,7 @@ export default function TooltipHUD({ data, mousePos }) {
             <span style={{ fontSize: '0.6rem', color: 'var(--accent-cyan)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Current Location</span>
           </div>
           <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '1px', color: '#fff' }}>
-            {data.location?.split('-').map((part, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <span style={{ opacity: 0.3, margin: '0 6px' }}>/</span>}
-                {part}
-              </React.Fragment>
-            )) || 'YARD • STACK • UNK'}
+            {data.location || 'YARD • STACK • UNK'}
           </div>
         </div>
         

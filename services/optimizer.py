@@ -139,8 +139,8 @@ def simulated_annealing_optimization(
     Métaheuristique : Algorithme de Recuit Simulé (Simulated Annealing)
     """
     def get_cost(slot: Slot) -> float:
-        if precomputed_scores is not None and slot.position_key in precomputed_scores:
-            return precomputed_scores[slot.position_key]
+        if precomputed_scores is not None and slot.localization in precomputed_scores:
+            return precomputed_scores[slot.localization]
         return calculate_score(slot, container, yard)
 
     # 1. État initial (placement aléatoire)
@@ -160,7 +160,7 @@ def simulated_annealing_optimization(
             # 3. Génération d'une solution voisine en choisissant une nouvelle pile valide
             neighbor_slot = random.choice(valid_slots)
             
-            if neighbor_slot.position_key == current_slot.position_key:
+            if neighbor_slot.localization == current_slot.localization:
                 continue
                 
             try:
@@ -256,7 +256,7 @@ def find_best_slot(
     # Tri par score croissant (faible score = meilleur) et sélection des K meilleurs
     scored_slots.sort(key=lambda x: x[0])
     top_candidates = [slot for score, slot in scored_slots[:top_k]]
-    precomputed = {slot.position_key: score for score, slot in scored_slots}
+    precomputed = {slot.localization: score for score, slot in scored_slots}
 
     # 2. Application de l'approche métaheuristique (SA) sur les candidats filtrés.
     return simulated_annealing_optimization(container, yard, top_candidates, precomputed_scores=precomputed)

@@ -117,7 +117,7 @@ async def get_yard_state():
                         "weight": c.weight,
                         "type": c.type.value,
                         "departure_time": c.departure_time.strftime("%Y-%m-%d %H:%M"),
-                        "location": f"{block_id}-B{bay}-R{row}-T{s.tier}"
+                        "location": s.localization
                     }
                 
                 slots_info.append(

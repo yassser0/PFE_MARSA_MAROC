@@ -54,11 +54,47 @@ class Slot:
     @property
     def position_key(self) -> str:
         """Clé unique représentant la position 3D."""
-        return f"{self.block_id}-B{self.bay:02d}-R{self.row}-T{self.tier}"
+        return self.localization
+
+    @property
+    def localization(self) -> str:
+        """
+        Retourne la localisation au format [BLOC][TRAVEE][CELLULE][NIVEAU]
+        Exemple : K019A04
+        - BLOC    : 1-2 lettres (block_id)
+        - TRAVEE  : 3 chiffres (bay)
+        - CELLULE : Lettre A-F (row)
+        - NIVEAU  : 2 chiffres (tier)
+        """
+        cellule = chr(ord('A') + self.row - 1)
+        return f"{self.block_id}-{self.bay:03d}-{cellule}-{self.tier:02d}"
+
+    @staticmethod
+    def from_localization(loc: str) -> Dict[str, any]:
+        """
+        Parse une chaîne de localisation et retourne les composants.
+        Exemple: "K-019-A-04" -> {'block_id': 'K', 'bay': 19, 'row': 1, 'tier': 4}
+        """
+        import re
+        # Pattern avec ou sans tirets pour la flexibilité
+        # Groupes: (BLOC)-(TRAVEE)-(CELLULE)-(NIVEAU)
+        clean_loc = loc.upper().replace(" ", "")
+        pattern = r"^([A-Z]{1,2})[-]?(\d{3})[-]?([A-F])[-]?(\d{2})$"
+        match = re.match(pattern, clean_loc)
+        if not match:
+            raise ValueError(f"Format de localisation invalide: {loc}")
+        
+        block_id, bay_str, row_str, tier_str = match.groups()
+        return {
+            "block_id": block_id,
+            "bay": int(bay_str),
+            "row": ord(row_str) - ord('A') + 1,
+            "tier": int(tier_str)
+        }
 
     def __repr__(self) -> str:
         status = "libre" if self.is_free else f"CNTR:{self.container_id}"
-        return f"Slot({self.block_id}, B{self.bay}, R{self.row}, T{self.tier}, {status})"
+        return f"Slot({self.localization}, {status})"
 
 
 # ---------------------------------------------------------------------------

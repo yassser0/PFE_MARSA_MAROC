@@ -34,6 +34,7 @@ class AvailableSlotResponse(BaseModel):
     row: int
     tier: int
     position_key: str
+    localization: str
     stack_current_height: int
     stack_max_height: int
 
@@ -112,6 +113,7 @@ async def get_available_slots(
                 row=slot.row,
                 tier=slot.tier,
                 position_key=slot.position_key,
+                localization=slot.localization,
                 stack_current_height=stack.current_height if stack else 0,
                 stack_max_height=stack.max_height if stack else 0,
             )
