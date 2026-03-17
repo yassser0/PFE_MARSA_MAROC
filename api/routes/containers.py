@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 from models.container import Container, ContainerType
 from models.yard import Slot
 from services.optimizer import find_best_slot
+from api.database import db
 
 router = APIRouter(prefix="/containers", tags=["Conteneurs"])
 
@@ -117,6 +118,7 @@ async def place_containers_batch(
 
     placed_count = 0
     failed_count = 0
+    db_containers = []
 
     for req in sorted_requests:
         # Utiliser l'id fourni ou générer un nouveau
@@ -148,8 +150,21 @@ async def place_containers_batch(
         if success:
             container_registry[container.id] = container
             placed_count += 1
+            # Préparation pour la sauvegarde MongoDB
+            db_containers.append({
+                "id": container.id,
+                "size": container.size,
+                "weight": container.weight,
+                "type": container.type.value,
+                "departure_time": container.departure_time,
+                "slot": best_slot.localization
+            })
         else:
             failed_count += 1
+
+    # 3. Sauvegarde asynchrone dans MongoDB
+    if db_containers:
+        await db.save_containers(db_containers)
 
     end_time = time.perf_counter()
     duration_ms = (end_time - start_time) * 1000

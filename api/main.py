@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import containers, slots, yard
 from data_generator.generator import generate_yard
+from api.database import db
 
 
 @asynccontextmanager
@@ -29,18 +30,19 @@ async def lifespan(app: FastAPI):
     """
     print("🚀 Démarrage de l'API Marsa Maroc Yard Optimization")
     
-    # Création du yard initial (4 blocs, 10 bays, 3 rows, max 4 conteneurs de haut)
+    # Initialisation de la base de données MongoDB
+    await db.connect_to_storage()
+
+    # Création du yard initial
     app.state.yard = generate_yard(blocks=4, bays=10, rows=3, max_height=4)
-    
-    # Registre des conteneurs pour garder la trace de ce qui est dans le yard
-    # (En production, ce serait une base de données)
     app.state.container_registry = {}
     
     print(f"📦 Yard initialisé : capacité totale de {app.state.yard.total_capacity} slots")
     
     yield
     
-    # Nettoyage à l'arrêt si nécessaire
+    # Nettoyage à l'arrêt
+    await db.close_storage_connection()
     print("🛑 Arrêt de l'API")
 
 
