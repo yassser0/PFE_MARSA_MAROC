@@ -51,6 +51,11 @@ class ContainerRequest(BaseModel):
         examples=["2026-03-20T10:00:00"],
     )
 
+    id: Optional[str] = Field(
+        None,
+        description="Identifiant unique du conteneur (ex: HLX-4458). Si omis, un ID sera généré.",
+        examples=["CNTR-001"],
+    )
     zones_20ft: Optional[list[str]] = Field(
         None,
         description="Liste des blocs dédiés aux conteneurs 20ft (ex: ['A', 'B'])",
@@ -114,8 +119,11 @@ async def place_containers_batch(
     failed_count = 0
 
     for req in sorted_requests:
+        # Utiliser l'id fourni ou générer un nouveau
+        cntr_id = req.id if req.id else f"B-{uuid.uuid4().hex[:8].upper()}"
+        
         container = Container(
-            id=f"B-{uuid.uuid4().hex[:8].upper()}",
+            id=cntr_id,
             size=req.size,
             weight=req.weight,
             departure_time=req.departure_time,

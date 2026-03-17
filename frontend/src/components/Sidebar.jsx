@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import logo from '../assets/logo.png'
+import BatchUpload from './BatchUpload'
 
 export default function Sidebar({
   apiOnline, lastRefresh, onInit, onClear, onRefresh,
@@ -226,6 +227,9 @@ export default function Sidebar({
             </div>
           )}
         </section>
+
+        {/* Batch Upload Section */}
+        <BatchUpload onUploadSuccess={onRefresh} />
 
         {/* Global Actions */}
         <section style={{ marginTop: '35px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
