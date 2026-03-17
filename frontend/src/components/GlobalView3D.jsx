@@ -288,6 +288,7 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
   const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
   const [hoveredContainer, setHoveredContainer] = useState(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const lastSearchQuery = React.useRef('')
 
   // Track mouse movement for tooltip
   useEffect(() => {
@@ -299,12 +300,16 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
   }, [])
 
 
-  // Auto-focus row on search
+  // Auto-focus row on search - modified to prevent resetting manual selection on periodic refresh
   useEffect(() => {
-    if (!searchQuery || !yardData) {
-      setVisibleRow(0)
+    // Only proceed if search query actually changed and is not empty
+    if (!searchQuery || searchQuery === lastSearchQuery.current) {
+      lastSearchQuery.current = searchQuery || '';
       return
     }
+    
+    lastSearchQuery.current = searchQuery;
+    if (!yardData) return
 
     for (const block of yardData.blocks) {
       for (const stack of block.stacks) {

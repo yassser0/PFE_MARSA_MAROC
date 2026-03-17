@@ -176,6 +176,7 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
   const [visibleRow, setVisibleRow] = useState(0) // 0 means all rows visible
   const [hoveredContainer, setHoveredContainer] = useState(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const lastSearchQuery = React.useRef('')
 
   // Track mouse movement for tooltip
   useEffect(() => {
@@ -186,12 +187,16 @@ export default function BlockDetailView({ yardData, selectedBlock, onBlockChange
     return () => window.removeEventListener('mousemove', handleMouseMove)
   }, [])
 
-  // Auto-focus row on search
+  // Auto-focus row on search - fixed to avoid reset on refresh
   useEffect(() => {
-    if (!searchQuery || !yardData) {
-      setVisibleRow(0)
+    if (!searchQuery || searchQuery === lastSearchQuery.current) {
+      lastSearchQuery.current = searchQuery || '';
       return
     }
+    
+    lastSearchQuery.current = searchQuery;
+    if (!yardData) return
+    
     const blockData = yardData?.blocks?.find(b => b.block_id === selectedBlock)
     if (!blockData) return
 
