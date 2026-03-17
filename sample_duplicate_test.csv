@@ -1,0 +1,3 @@
+id,weight,type,departure_time,size
+DUPLICATE-TEST,15.5,import,2026-03-25T10:00:00,20
+DUPLICATE-TEST,15.5,import,2026-03-25T10:00:00,20

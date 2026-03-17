@@ -8,65 +8,100 @@ export default function BatchUpload({ onUploadSuccess }) {
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState(null)
   const [error, setError] = useState(null)
+  const [validationErrors, setValidationErrors] = useState([])
+  const [validData, setValidData] = useState([])
+
+  const validateRow = (entry, index) => {
+    const errors = []
+    
+    if (!entry.id) errors.push("ID manquant")
+    
+    const weight = parseFloat(entry.weight)
+    if (isNaN(weight) || weight < 1.0 || weight > 50.0) {
+      errors.push(`Poids invalide (${entry.weight}t) - doit être entre 1 et 50`)
+    }
+    
+    const size = parseInt(entry.size)
+    if (isNaN(size) || (size !== 20 && size !== 40)) {
+      errors.push(`Taille invalide (${entry.size}) - doit être 20 ou 40`)
+    }
+    
+    try {
+      if (entry.departure_time) {
+        new Date(entry.departure_time).toISOString()
+      } else {
+        errors.push("Date de départ manquante")
+      }
+    } catch (e) {
+      errors.push(`Format de date invalide (${entry.departure_time})`)
+    }
+    
+    return errors.length > 0 ? { row: index + 2, errors } : null
+  }
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0]
-    if (selectedFile && selectedFile.type === "text/csv") {
+    if (selectedFile && (selectedFile.type === "text/csv" || selectedFile.name.endsWith('.csv'))) {
       setFile(selectedFile)
       setError(null)
+      setValidationErrors([])
+      setStats(null)
+      
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const text = event.target.result
+        const lines = text.split('\n').filter(line => line.trim() !== '')
+        if (lines.length < 2) {
+          setError("Le fichier CSV est vide ou mal formé.")
+          return
+        }
+        
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+        const rows = lines.slice(1).map(line => {
+          const values = line.split(',').map(v => v.trim())
+          const entry = {}
+          headers.forEach((header, i) => { entry[header] = values[i] })
+          return entry
+        })
+        
+        const foundErrors = []
+        const parsedData = rows.map((row, i) => {
+          const err = validateRow(row, i)
+          if (err) foundErrors.push(err)
+          
+          return {
+            id: row.id,
+            weight: parseFloat(row.weight),
+            type: (row.type || 'import').toLowerCase(),
+            departure_time: row.departure_time,
+            size: parseInt(row.size)
+          }
+        })
+        
+        setValidationErrors(foundErrors)
+        setValidData(foundErrors.length === 0 ? parsedData : [])
+      }
+      reader.readAsText(selectedFile)
     } else {
-      setError("Please select a valid CSV file.")
+      setError("Veuillez sélectionner un fichier CSV valide.")
       setFile(null)
     }
   }
 
-  const parseCSV = (text) => {
-    const lines = text.split('\n').filter(line => line.trim() !== '')
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-    
-    return lines.slice(1).map(line => {
-      const values = line.split(',').map(v => v.trim())
-      const entry = {}
-      headers.forEach((header, i) => {
-        entry[header] = values[i]
-      })
-      
-      // Data normalization
-      return {
-        id: entry.id || null,
-        weight: parseFloat(entry.weight) || 15.0,
-        type: (entry.type || 'import').toLowerCase(),
-        departure_time: entry.departure_time || new Date(Date.now() + 86400000 * 7).toISOString(),
-        size: entry.size ? parseInt(entry.size) : 20
-      }
-    })
-  }
-
   const handleUpload = async () => {
-    if (!file) return
+    if (!validData.length || validationErrors.length > 0) return
 
     setLoading(true)
     setError(null)
     setStats(null)
 
     try {
-      const reader = new FileReader()
-      reader.onload = async (e) => {
-        const text = e.target.result
-        const data = parseCSV(text)
-
-        try {
-          const response = await axios.post(`${API_URL}/containers/place_batch`, data)
-          setStats(response.data)
-          if (onUploadSuccess) onUploadSuccess()
-        } catch (err) {
-          setError(err.response?.data?.detail || "Error connecting to the optimization engine.")
-        }
-        setLoading(false)
-      }
-      reader.readAsText(file)
+      const response = await axios.post(`${API_URL}/containers/place_batch`, validData)
+      setStats(response.data)
+      if (onUploadSuccess) onUploadSuccess()
     } catch (err) {
-      setError("Failed to read file.")
+      setError(err.response?.data?.detail || "Erreur de connexion au moteur d'optimisation.")
+    } finally {
       setLoading(false)
     }
   }
@@ -118,26 +153,51 @@ export default function BatchUpload({ onUploadSuccess }) {
 
       <button 
         onClick={handleUpload} 
-        disabled={!file || loading}
+        disabled={!file || loading || validationErrors.length > 0}
         style={{
           width: '100%',
-          background: 'linear-gradient(135deg, var(--accent-cyan), #00a8ff)',
-          color: '#000',
-          border: 'none',
+          background: validationErrors.length > 0 
+            ? 'rgba(248, 81, 73, 0.1)' 
+            : 'linear-gradient(135deg, var(--accent-cyan), #00a8ff)',
+          color: validationErrors.length > 0 ? '#f85149' : '#000',
+          border: validationErrors.length > 0 ? '1px solid rgba(248, 81, 73, 0.3)' : 'none',
           padding: '12px',
           borderRadius: '8px',
           fontWeight: 800,
           fontSize: '0.75rem',
           textTransform: 'uppercase',
           letterSpacing: '1px',
-          cursor: file && !loading ? 'pointer' : 'default',
+          cursor: validData.length && !loading ? 'pointer' : 'default',
           opacity: file && !loading ? 1 : 0.5,
-          boxShadow: file && !loading ? '0 4px 15px rgba(0, 253, 255, 0.3)' : 'none',
+          boxShadow: validData.length && !loading ? '0 4px 15px rgba(0, 253, 255, 0.3)' : 'none',
           transition: 'all 0.2s'
         }}
       >
-        {loading ? 'Optimizing...' : 'Run Optimization Pipeline'}
+        {loading ? 'Optimisation en cours...' : 
+         validationErrors.length > 0 ? `${validationErrors.length} Erreurs Détectées` :
+         'Lancer la Pipeline d\'Optimisation'}
       </button>
+
+      {validationErrors.length > 0 && (
+        <div style={{
+          marginTop: '15px',
+          padding: '12px',
+          background: 'rgba(248, 81, 73, 0.05)',
+          border: '1px solid rgba(248, 81, 73, 0.2)',
+          borderRadius: '8px',
+          maxHeight: '150px',
+          overflowY: 'auto'
+        }}>
+          <div style={{ color: '#f85149', fontWeight: 800, fontSize: '0.65rem', marginBottom: '8px', textTransform: 'uppercase' }}>
+            Rapport de Validation ({validationErrors.length} erreurs)
+          </div>
+          {validationErrors.map((err, i) => (
+            <div key={i} style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2px' }}>
+              <strong style={{ color: '#f85149' }}>Ligne {err.row}:</strong> {err.errors.join(', ')}
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div style={{

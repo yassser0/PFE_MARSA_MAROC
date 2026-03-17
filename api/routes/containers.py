@@ -123,6 +123,11 @@ async def place_containers_batch(
     for req in sorted_requests:
         # Utiliser l'id fourni ou générer un nouveau
         cntr_id = req.id if req.id else f"B-{uuid.uuid4().hex[:8].upper()}"
+
+        # Vérification des doublons : Ne pas placer si l'ID existe déjà dans le yard
+        if cntr_id in container_registry:
+            failed_count += 1
+            continue
         
         container = Container(
             id=cntr_id,
