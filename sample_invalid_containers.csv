@@ -1,7 +1,0 @@
-id,weight,type,departure_time,size
-,15.5,import,2026-03-25T10:00:00,20
-CNTR-BAD-WEIGHT,65.0,export,2026-03-25T10:00:00,40
-CNTR-BAD-SIZE,12.0,import,2026-03-25T10:00:00,35
-CNTR-BAD-DATE,18.0,transshipment,C'est-une-date-invalide,20
-CNTR-OK,22.5,import,2026-03-28T08:00:00,40
-CNTR-OK,22.5,import,2026-03-28T08:00:00,40
