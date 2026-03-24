@@ -221,9 +221,36 @@ export default function BatchUpload({ onUploadSuccess }) {
           border: '1px solid rgba(63, 185, 80, 0.15)',
           borderRadius: '8px'
         }}>
-          <div style={{ color: '#3fb950', fontWeight: 800, fontSize: '0.7rem', marginBottom: '8px', textTransform: 'uppercase' }}>
-            Pipeline Success
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+             <div style={{ color: '#3fb950', fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase' }}>
+              Pipeline Success
+            </div>
+            {stats.silver_report && (
+              <div style={{ fontSize: '0.6rem', color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                SILVER LAYER: {stats.silver_report.quality_score}% CLEAN
+              </div>
+            )}
           </div>
+
+          {stats.silver_report && (
+            <div style={{ 
+              marginBottom: '15px', 
+              padding: '8px', 
+              background: 'rgba(0,253,255,0.03)', 
+              borderRadius: '6px',
+              fontSize: '0.65rem',
+              color: 'var(--text-secondary)',
+              border: '1px solid rgba(0,253,255,0.05)'
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+                <span>📦 Bruts: {stats.silver_report.total_raw}</span>
+                <span>🧹 Doublons: {stats.silver_report.duplicates_removed}</span>
+                <span>🚫 Invalides: {stats.silver_report.invalid_rows_filtered}</span>
+                <span style={{ color: 'var(--accent-cyan)' }}>✨ Silver: {stats.silver_report.total_cleaned}</span>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             <div style={statItemStyle}>
               <span style={statLabelStyle}>PLACED</span>

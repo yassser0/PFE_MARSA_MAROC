@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 from models.container import Container, ContainerType
 from models.yard import Slot
 from services.optimizer import find_best_slot
+from services.silver_layer import SilverLayer
 from api.database import db
 
 router = APIRouter(prefix="/containers", tags=["Conteneurs"])
@@ -80,7 +81,10 @@ class PlacementBatchResponse(BaseModel):
     failed_placements: int
     yard_occupancy: str
     processing_time_ms: float
+    silver_report: Optional[dict] = None
     message: str
+
+PlacementBatchResponse.model_rebuild()
 
 
 # ---------------------------------------------------------------------------
@@ -112,17 +116,26 @@ async def place_containers_batch(
 
     start_time = time.perf_counter()
 
-    # 1. Trier la pipeline par Date de Départ Inverse (EDD)
+    # 1. Pipeline Silver Layer : Nettoyage et Validation Haute Performance
+    # On transforme les requêtes (Pydantic) en liste de dicts pour le Silver Layer
+    raw_data = [req.model_dump() for req in requests]
+    cleaned_data, silver_report = SilverLayer.process(raw_data)
+
+    if not cleaned_data and silver_report.get("error"):
+        raise HTTPException(status_code=400, detail=silver_report["error"])
+
+    # 2. Trier la pipeline par Date de Départ Inverse (EDD)
     # Les conteneurs partant le plus tard (departure_time le plus grand) sont placés en premier.
-    sorted_requests = sorted(requests, key=lambda r: r.departure_time, reverse=True)
+    # Note: On utilise cleaned_data (liste de dicts)
+    sorted_items = sorted(cleaned_data, key=lambda x: x['departure_time'], reverse=True)
 
     placed_count = 0
     failed_count = 0
     db_containers = []
 
-    for req in sorted_requests:
-        # Utiliser l'id fourni ou générer un nouveau
-        cntr_id = req.id if req.id else f"B-{uuid.uuid4().hex[:8].upper()}"
+    for item in sorted_items:
+        # Utiliser l'id fourni
+        cntr_id = item['id']
 
         # Vérification des doublons : Ne pas placer si l'ID existe déjà dans le yard
         if cntr_id in container_registry:
@@ -131,17 +144,17 @@ async def place_containers_batch(
         
         container = Container(
             id=cntr_id,
-            size=req.size,
-            weight=req.weight,
-            departure_time=req.departure_time,
-            type=req.type,
+            size=item['size'],
+            weight=item['weight'],
+            departure_time=item['departure_time'],
+            type=ContainerType(item['type']),
         )
 
         allowed_blocks = None
-        if container.size == 20 and req.zones_20ft:
-            allowed_blocks = [z.upper() for z in req.zones_20ft]
-        elif container.size == 40 and req.zones_40ft:
-            allowed_blocks = [z.upper() for z in req.zones_40ft]
+        if container.size == 20 and item.get('zones_20ft'):
+            allowed_blocks = [z.upper() for z in item['zones_20ft']]
+        elif container.size == 40 and item.get('zones_40ft'):
+            allowed_blocks = [z.upper() for z in item['zones_40ft']]
 
         best_result = find_best_slot(container, yard, allowed_blocks=allowed_blocks)
         
@@ -180,6 +193,7 @@ async def place_containers_batch(
         failed_placements=failed_count,
         yard_occupancy=f"{yard.occupancy_rate:.1%}",
         processing_time_ms=round(duration_ms, 2),
-        message=f"{placed_count}/{len(requests)} placés avec succès en {duration_ms:.0f}ms."
+        silver_report=silver_report,
+        message=f"{placed_count}/{len(requests)} placés avec succès."
     )
 
