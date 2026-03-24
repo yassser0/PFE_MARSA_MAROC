@@ -54,7 +54,14 @@ export default function App() {
   }
 
   const handleClearYard = async () => {
-    await axios.post(`${API_URL}/yard/init`, { blocks: 4, bays: 24, rows: 6, max_height: 5 }).catch(() => { })
+    const config = yardData ? {
+      blocks: yardData.n_blocks,
+      bays: yardData.n_bays,
+      rows: yardData.n_rows,
+      max_height: yardData.max_height
+    } : { blocks: 4, bays: 10, rows: 3, max_height: 4 }
+
+    await axios.post(`${API_URL}/yard/init`, config).catch(() => { })
     await fetchYardData()
   }
 
