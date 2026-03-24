@@ -371,44 +371,45 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
       />
 
       {/* Unified Horizontal Header Bar */}
-      <div style={{ padding: '15px' }}>
+      <div style={{ padding: '10px 15px' }}>
         <div className="detail-header-row glass" style={{ 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between', 
-          padding: '12px 25px', 
+          padding: '10px 20px', 
           borderRadius: '12px',
-          gap: '20px'
+          gap: '15px',
+          flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Vue</label>
-              <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600 }}>GLOBALE</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Vue</label>
+              <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600 }}>GLOBALE</span>
             </div>
 
             {/* Row Visibility Tool */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingLeft: '20px', borderLeft: '1px solid var(--border)' }}>
-              <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Visibilité Rangées</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '15px', borderLeft: '1px solid var(--border)' }}>
+              <label style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Rangées</label>
               <input 
                 type="range" 
                 min="0" 
                 max={yardData.n_rows} 
                 value={visibleRow} 
                 onChange={(e) => setVisibleRow(parseInt(e.target.value))}
-                style={{ width: '120px' }}
+                style={{ width: '100px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '0.8rem', color: 'white', minWidth: '50px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'white', minWidth: '45px', fontWeight: 600 }}>
                 {visibleRow === 0 ? 'Toutes' : `R${visibleRow}`}
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Occupation Globale</span>
-            <div style={{ width: '150px', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-              <div style={{ width: `${stats.occupancy}%`, height: '100%', background: 'var(--accent-cyan)', transition: 'width 0.5s' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Occupation</span>
+            <div style={{ width: '120px', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: `${stats.occupancy}%`, height: '100%', background: 'var(--accent-cyan)', boxShadow: '0 0 10px var(--accent-cyan)', transition: 'width 0.5s' }} />
             </div>
-            <strong style={{ fontSize: '1.1rem', color: 'var(--accent-cyan)' }}>{stats.occupancy}%</strong>
+            <strong style={{ fontSize: '1rem', color: 'var(--accent-cyan)', minWidth: '55px', textAlign: 'right' }}>{stats.occupancy}%</strong>
           </div>
         </div>
       </div>
