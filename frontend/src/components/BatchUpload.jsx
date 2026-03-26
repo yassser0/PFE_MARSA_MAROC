@@ -69,11 +69,18 @@ export default function BatchUpload({ onUploadSuccess }) {
           const err = validateRow(row, i)
           if (err) foundErrors.push(err)
           
+          let formattedDate = row.departure_time;
+          try {
+            if (row.departure_time) {
+              formattedDate = new Date(row.departure_time).toISOString();
+            }
+          } catch(e) {}
+          
           return {
             id: row.id,
             weight: parseFloat(row.weight),
             type: (row.type || 'import').toLowerCase(),
-            departure_time: row.departure_time,
+            departure_time: formattedDate,
             size: parseInt(row.size)
           }
         })
