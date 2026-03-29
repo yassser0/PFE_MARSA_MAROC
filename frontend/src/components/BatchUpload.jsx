@@ -101,26 +101,54 @@ export default function BatchUpload({ onUploadSuccess }) {
     setResult(null)
 
     try {
-      // Utiliser FormData pour envoyer le fichier en multipart
       const formData = new FormData()
       formData.append('file', file)
 
+      // 1. Envoyer le fichier pour lancer la tâche de fond
       const response = await axios.post(
         `${API_URL}/containers/upload-csv`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )
-      setResult(response.data)
-      if (onUploadSuccess) onUploadSuccess()
+      
+      if (response.data.status === 'processing') {
+        // 2. Commencer le polling
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await axios.get(`${API_URL}/containers/upload-status`)
+            const job = statusRes.data
+            
+            if (job.status === 'success') {
+              clearInterval(pollInterval)
+              setResult(job.result)
+              setLoading(false)
+              if (onUploadSuccess) onUploadSuccess()
+            } else if (job.status === 'error') {
+              clearInterval(pollInterval)
+              setError(job.message || "Erreur lors du traitement ETL.")
+              setLoading(false)
+            }
+            // Si c'est toujours 'processing', on ne fait rien et on attend le prochain tick
+          } catch (pollErr) {
+            clearInterval(pollInterval)
+            setError("Connexion perdue avec le serveur pendant le traitement.")
+            setLoading(false)
+          }
+        }, 1000) // Polling toutes les secondes
+      } else {
+         // Fallback just in case
+         setResult(response.data)
+         setLoading(false)
+         if (onUploadSuccess) onUploadSuccess()
+      }
     } catch (err) {
+      setLoading(false)
       const detail = err.response?.data?.detail
       setError(
         typeof detail === 'string'
           ? detail
           : "Erreur de connexion à la pipeline ETL."
       )
-    } finally {
-      setLoading(false)
     }
   }
 

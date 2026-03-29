@@ -37,6 +37,13 @@ async def lifespan(app: FastAPI):
     app.state.yard = generate_yard(blocks=4, bays=10, rows=3, max_height=4)
     app.state.container_registry = {}
     
+    # État global du job ETL asynchrone pour éviter les conflits
+    app.state.etl_job = {
+        "status": "none", # "none", "processing", "success", "error"
+        "message": "Aucun traitement en cours.",
+        "result": None
+    }
+    
     print(f"📦 Yard initialisé : capacité totale de {app.state.yard.total_capacity} slots")
     
     yield
