@@ -1,6 +1,8 @@
 version: '3.8'
 
 services:
+
+  # ─── MongoDB ───────────────────────────────────────────────────────────────
   mongodb:
     image: mongo:latest
     container_name: marsa_maroc_mongodb
@@ -12,5 +14,40 @@ services:
       - MONGO_INITDB_DATABASE=marsa_maroc
     restart: always
 
+  # ─── Hadoop HDFS — NameNode ────────────────────────────────────────────────
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: marsa_hdfs_namenode
+    restart: always
+    ports:
+      - "9870:9870"   # Interface Web NameNode  → http://localhost:9870
+      - "9000:9000"   # Port RPC HDFS (PySpark ↔ HDFS)
+    volumes:
+      - hdfs_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=marsa_maroc_cluster
+    env_file:
+      - ./hadoop.env
+
+  # ─── Hadoop HDFS — DataNode ────────────────────────────────────────────────
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: marsa_hdfs_datanode
+    restart: always
+    ports:
+      - "9864:9864"   # Interface Web DataNode  → http://localhost:9864
+      - "9866:9866"   # DataNode transfer port
+    volumes:
+      - hdfs_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    depends_on:
+      - namenode
+
+# ─── Volumes persistants ───────────────────────────────────────────────────
 volumes:
   mongodb_data:
+  hdfs_namenode:
+  hdfs_datanode:

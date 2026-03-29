@@ -5,11 +5,12 @@ import KpiHeader from './components/KpiHeader'
 import GlobalView3D from './components/GlobalView3D'
 import BlockDetailView from './components/BlockDetailView'
 import AnalyticsView from './components/AnalyticsView'
+import ContainerTable from './components/ContainerTable'
 import ContainerInfoDrawer from './components/ContainerInfoDrawer'
 import logo from './assets/logo.png'
 
 const API_URL = 'http://127.0.0.1:8000'
-const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique']
+const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique', 'Tableau des Conteneurs']
 
 export default function App() {
   const [yardData, setYardData] = useState(null)
@@ -65,6 +66,11 @@ export default function App() {
     await fetchYardData()
   }
 
+  const handleUploadSuccess = async () => {
+    await fetchYardData()
+    setActiveTab('Vue Globale 3D')
+  }
+
   const handleInspectBlock = (blockId) => {
     setSelectedBlock(blockId)
     setActiveTab('Vue Détail Bloc')
@@ -78,6 +84,7 @@ export default function App() {
         onInit={handleInitYard}
         onClear={handleClearYard}
         onRefresh={fetchYardData}
+        onUploadSuccess={handleUploadSuccess}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
       />
@@ -149,6 +156,14 @@ export default function App() {
 
           {!loading && yardData && activeTab === 'Heatmap & Analytique' && (
             <AnalyticsView yardData={yardData} />
+          )}
+
+          {!loading && yardData && activeTab === 'Tableau des Conteneurs' && (
+            <ContainerTable 
+              yardData={yardData} 
+              searchQuery={searchQuery}
+              onSelectContainer={setSelectedContainer}
+            />
           )}
         </div>
       </div>

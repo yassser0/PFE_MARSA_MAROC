@@ -3,16 +3,25 @@ api/routes/containers.py
 =========================
 Route FastAPI pour le placement des conteneurs.
 
+Endpoints :
+- POST /containers/place_batch  : Placement direct via JSON (Pydantic)
+- POST /containers/upload-csv   : Upload CSV → Pipeline ETL Bronze/Silver/Gold → Placement
+
 Auteur  : PFE Marsa Maroc
-Version : 1.0
+Version : 2.0 (PySpark ETL)
 """
 
 from __future__ import annotations
 
+import os
+import shutil
+import tempfile
+import time
+import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 
 from models.container import Container, ContainerType
@@ -20,6 +29,7 @@ from models.yard import Slot
 from services.optimizer import find_best_slot
 from services.silver_layer import SilverLayer
 from api.database import db
+from pipeline.etl_pipeline import get_pipeline
 
 router = APIRouter(prefix="/containers", tags=["Conteneurs"])
 
@@ -87,6 +97,24 @@ class PlacementBatchResponse(BaseModel):
 PlacementBatchResponse.model_rebuild()
 
 
+class ETLUploadResponse(BaseModel):
+    """Réponse pour l'upload CSV avec pipeline ETL Bronze/Silver/Gold."""
+    pipeline_status: str
+    # Rapports par couche
+    bronze_report: Optional[dict] = None
+    silver_report: Optional[dict] = None
+    gold_kpis: Optional[dict] = None
+    # Placement final
+    total_received: int = 0
+    containers_placed: int = 0
+    failed_placements: int = 0
+    yard_occupancy: str = "0.0%"
+    processing_time_ms: float = 0.0
+    message: str = ""
+
+ETLUploadResponse.model_rebuild()
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -142,11 +170,14 @@ async def place_containers_batch(
             failed_count += 1
             continue
         
+        dt_raw = item['departure_time']
+        dep_dt = datetime.fromisoformat(dt_raw) if isinstance(dt_raw, str) else dt_raw
+
         container = Container(
             id=cntr_id,
             size=item['size'],
             weight=item['weight'],
-            departure_time=item['departure_time'],
+            departure_time=dep_dt,
             type=ContainerType(item['type']),
         )
 
@@ -195,5 +226,143 @@ async def place_containers_batch(
         processing_time_ms=round(duration_ms, 2),
         silver_report=silver_report,
         message=f"{placed_count}/{len(requests)} placés avec succès."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 2 : Upload CSV → Pipeline ETL Bronze / Silver / Gold → Placement
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/upload-csv",
+    response_model=ETLUploadResponse,
+    summary="🏭 Pipeline ETL : Upload CSV → Bronze → Silver → Gold → Placement",
+    description="""
+Accepte un fichier CSV (multipart/form-data) et le traite via la pipeline ETL complète :
+
+1. **Bronze** : Ingestion brute du CSV, stockage Parquet dans `data/bronze/`
+2. **Silver** : Nettoyage, déduplication, validation via **PySpark** (mode Hadoop local),
+   stockage Parquet dans `data/silver/`
+3. **Gold** : Calcul des KPIs analytiques (distribution type/taille, poids moyen...),
+   stockage Parquet dans `data/gold/`
+4. **Placement** : Les données nettoyées sont injectées dans le moteur d'optimisation
+   du yard et sauvegardées dans MongoDB.
+    """,
+)
+async def upload_csv_etl(
+    file: UploadFile = File(..., description="Fichier CSV des conteneurs (colonnes: id,size,weight,departure_time,type)"),
+):
+    """Pipeline ETL complète déclenchée par upload de fichier CSV."""
+    from api.main import app as _app
+
+    # Validation du type de fichier
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Seuls les fichiers .csv sont acceptés.")
+
+    start_time = time.perf_counter()
+
+    # ── 1. Sauvegarder le fichier uploadé dans un répertoire temporaire
+    tmp_dir = tempfile.mkdtemp(prefix="marsa_etl_")
+    tmp_csv_path = os.path.join(tmp_dir, file.filename)
+    try:
+        with open(tmp_csv_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        # ── 2. Lancer la pipeline ETL (Bronze → Silver → Gold)
+        pipeline = get_pipeline()
+        etl_result = pipeline.run(tmp_csv_path)
+
+    finally:
+        # Nettoyage du fichier temporaire
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # Gestion des erreurs pipeline
+    if etl_result["pipeline_status"] == "ERROR":
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur pipeline ETL : {etl_result.get('error', 'Erreur inconnue')}"
+        )
+
+    if etl_result["pipeline_status"] == "EMPTY":
+        return ETLUploadResponse(
+            pipeline_status="EMPTY",
+            bronze_report=etl_result.get("bronze_report"),
+            silver_report=etl_result.get("silver_report"),
+            gold_kpis={},
+            message="Aucun conteneur valide trouvé dans le fichier CSV.",
+        )
+
+    # ── 3. Placement des conteneurs nettoyés dans le Yard
+    yard = _app.state.yard
+    container_registry = _app.state.container_registry
+    cleaned_records = etl_result["cleaned_records"]
+
+    # Trier par Date de Départ Inverse (EDD — optimisation anti-rehandle)
+    sorted_items = sorted(cleaned_records, key=lambda x: x["departure_time"], reverse=True)
+
+    placed_count = 0
+    failed_count = 0
+    db_containers = []
+
+    for item in sorted_items:
+        cntr_id = item["id"]
+
+        # Éviter les doublons dans le yard
+        if cntr_id in container_registry:
+            failed_count += 1
+            continue
+
+        dt_raw = item["departure_time"]
+        dep_dt = datetime.fromisoformat(dt_raw) if isinstance(dt_raw, str) else dt_raw
+
+        container = Container(
+            id=cntr_id,
+            size=item["size"],
+            weight=item["weight"],
+            departure_time=dep_dt,
+            type=ContainerType(item["type"]),
+        )
+
+        best_result = find_best_slot(container, yard)
+        if best_result is None:
+            failed_count += 1
+            continue
+
+        best_slot, _ = best_result
+        success = yard.place_container(best_slot, container)
+
+        if success:
+            container_registry[container.id] = container
+            placed_count += 1
+            db_containers.append({
+                "id":             container.id,
+                "size":           container.size,
+                "weight":         container.weight,
+                "type":           container.type.value,
+                "departure_time": container.departure_time,
+                "slot":           best_slot.localization,
+            })
+        else:
+            failed_count += 1
+
+    # ── 4. Sauvegarde asynchrone dans MongoDB
+    if db_containers:
+        await db.save_containers(db_containers)
+
+    end_time = time.perf_counter()
+    duration_ms = round((end_time - start_time) * 1000, 2)
+
+    return ETLUploadResponse(
+        pipeline_status="SUCCESS",
+        bronze_report=etl_result["bronze_report"],
+        silver_report=etl_result["silver_report"],
+        gold_kpis=etl_result["gold_kpis"],
+        total_received=etl_result["bronze_report"].get("total_rows_ingested", 0),
+        containers_placed=placed_count,
+        failed_placements=failed_count,
+        yard_occupancy=f"{yard.occupancy_rate:.1%}",
+        processing_time_ms=duration_ms,
+        message=f"✅ Pipeline ETL réussie — {placed_count}/{len(cleaned_records)} conteneurs placés en {duration_ms:.0f}ms.",
     )
 

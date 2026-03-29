@@ -3,7 +3,7 @@ import logo from '../assets/logo.png'
 import BatchUpload from './BatchUpload'
 
 export default function Sidebar({
-  apiOnline, lastRefresh, onInit, onClear, onRefresh,
+  apiOnline, lastRefresh, onInit, onClear, onRefresh, onUploadSuccess,
   searchQuery, onSearchChange
 }) {
   const [blocks, setBlocks] = useState(4)
@@ -229,7 +229,7 @@ export default function Sidebar({
         </section>
 
         {/* Batch Upload Section */}
-        <BatchUpload onUploadSuccess={onRefresh} />
+        <BatchUpload onUploadSuccess={onUploadSuccess || onRefresh} />
 
         {/* Global Actions */}
         <section style={{ marginTop: '35px', display: 'flex', flexDirection: 'column', gap: '10px' }}>

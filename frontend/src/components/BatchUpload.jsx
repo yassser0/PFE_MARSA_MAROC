@@ -1,287 +1,9 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import axios from 'axios'
 
 const API_URL = "http://127.0.0.1:8000"
 
-export default function BatchUpload({ onUploadSuccess }) {
-  const [file, setFile] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [stats, setStats] = useState(null)
-  const [error, setError] = useState(null)
-  const [validationErrors, setValidationErrors] = useState([])
-  const [validData, setValidData] = useState([])
-
-  const validateRow = (entry, index) => {
-    const errors = []
-    
-    if (!entry.id) errors.push("ID manquant")
-    
-    const weight = parseFloat(entry.weight)
-    if (isNaN(weight) || weight < 1.0 || weight > 50.0) {
-      errors.push(`Poids invalide (${entry.weight}t) - doit être entre 1 et 50`)
-    }
-    
-    const size = parseInt(entry.size)
-    if (isNaN(size) || (size !== 20 && size !== 40)) {
-      errors.push(`Taille invalide (${entry.size}) - doit être 20 ou 40`)
-    }
-    
-    try {
-      if (entry.departure_time) {
-        new Date(entry.departure_time).toISOString()
-      } else {
-        errors.push("Date de départ manquante")
-      }
-    } catch (e) {
-      errors.push(`Format de date invalide (${entry.departure_time})`)
-    }
-    
-    return errors.length > 0 ? { row: index + 2, errors } : null
-  }
-
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0]
-    if (selectedFile && (selectedFile.type === "text/csv" || selectedFile.name.endsWith('.csv'))) {
-      setFile(selectedFile)
-      setError(null)
-      setValidationErrors([])
-      setStats(null)
-      
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const text = event.target.result
-        const lines = text.split('\n').filter(line => line.trim() !== '')
-        if (lines.length < 2) {
-          setError("Le fichier CSV est vide ou mal formé.")
-          return
-        }
-        
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-        const rows = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.trim())
-          const entry = {}
-          headers.forEach((header, i) => { entry[header] = values[i] })
-          return entry
-        })
-        
-        const foundErrors = []
-        const parsedData = rows.map((row, i) => {
-          const err = validateRow(row, i)
-          if (err) foundErrors.push(err)
-          
-          let formattedDate = row.departure_time;
-          try {
-            if (row.departure_time) {
-              formattedDate = new Date(row.departure_time).toISOString();
-            }
-          } catch(e) {}
-          
-          return {
-            id: row.id,
-            weight: parseFloat(row.weight),
-            type: (row.type || 'import').toLowerCase(),
-            departure_time: formattedDate,
-            size: parseInt(row.size)
-          }
-        })
-        
-        setValidationErrors(foundErrors)
-        setValidData(foundErrors.length === 0 ? parsedData : [])
-      }
-      reader.readAsText(selectedFile)
-    } else {
-      setError("Veuillez sélectionner un fichier CSV valide.")
-      setFile(null)
-    }
-  }
-
-  const handleUpload = async () => {
-    if (!validData.length || validationErrors.length > 0) return
-
-    setLoading(true)
-    setError(null)
-    setStats(null)
-
-    try {
-      const response = await axios.post(`${API_URL}/containers/place_batch`, validData)
-      setStats(response.data)
-      if (onUploadSuccess) onUploadSuccess()
-    } catch (err) {
-      setError(err.response?.data?.detail || "Erreur de connexion au moteur d'optimisation.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div style={{
-      marginTop: '25px',
-      padding: '20px',
-      background: 'rgba(255, 255, 255, 0.03)',
-      borderRadius: '12px',
-      border: '1px solid rgba(255, 255, 255, 0.05)'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-          Batch CSV Pipeline
-        </span>
-      </div>
-
-      <div style={{ marginBottom: '15px' }}>
-        <input 
-          type="file" 
-          accept=".csv" 
-          onChange={handleFileChange}
-          id="csv-upload-input"
-          style={{ display: 'none' }}
-        />
-        <label htmlFor="csv-upload-input" style={{
-          display: 'block',
-          width: '100%',
-          padding: '12px',
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px dashed rgba(255,255,255,0.15)',
-          borderRadius: '8px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          color: file ? 'var(--accent-cyan)' : 'var(--text-muted)',
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          transition: 'all 0.2s'
-        }}>
-          {file ? `📄 ${file.name}` : "Drop CSV or Click to Browse"}
-        </label>
-      </div>
-
-      <button 
-        onClick={handleUpload} 
-        disabled={!file || loading || validationErrors.length > 0}
-        style={{
-          width: '100%',
-          background: validationErrors.length > 0 
-            ? 'rgba(248, 81, 73, 0.1)' 
-            : 'linear-gradient(135deg, var(--accent-cyan), #00a8ff)',
-          color: validationErrors.length > 0 ? '#f85149' : '#000',
-          border: validationErrors.length > 0 ? '1px solid rgba(248, 81, 73, 0.3)' : 'none',
-          padding: '12px',
-          borderRadius: '8px',
-          fontWeight: 800,
-          fontSize: '0.75rem',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          cursor: validData.length && !loading ? 'pointer' : 'default',
-          opacity: file && !loading ? 1 : 0.5,
-          boxShadow: validData.length && !loading ? '0 4px 15px rgba(0, 253, 255, 0.3)' : 'none',
-          transition: 'all 0.2s'
-        }}
-      >
-        {loading ? 'Optimisation en cours...' : 
-         validationErrors.length > 0 ? `${validationErrors.length} Erreurs Détectées` :
-         'Lancer la Pipeline d\'Optimisation'}
-      </button>
-
-      {validationErrors.length > 0 && (
-        <div style={{
-          marginTop: '15px',
-          padding: '12px',
-          background: 'rgba(248, 81, 73, 0.05)',
-          border: '1px solid rgba(248, 81, 73, 0.2)',
-          borderRadius: '8px',
-          maxHeight: '150px',
-          overflowY: 'auto'
-        }}>
-          <div style={{ color: '#f85149', fontWeight: 800, fontSize: '0.65rem', marginBottom: '8px', textTransform: 'uppercase' }}>
-            Rapport de Validation ({validationErrors.length} erreurs)
-          </div>
-          {validationErrors.map((err, i) => (
-            <div key={i} style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2px' }}>
-              <strong style={{ color: '#f85149' }}>Ligne {err.row}:</strong> {err.errors.join(', ')}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {error && (
-        <div style={{
-          marginTop: '15px',
-          padding: '10px',
-          background: 'rgba(248, 81, 73, 0.1)',
-          border: '1px solid rgba(248, 81, 73, 0.2)',
-          color: '#f85149',
-          fontSize: '0.7rem',
-          borderRadius: '6px'
-        }}>
-          {error}
-        </div>
-      )}
-
-      {stats && (
-        <div style={{
-          marginTop: '15px',
-          padding: '12px',
-          background: 'rgba(63, 185, 80, 0.05)',
-          border: '1px solid rgba(63, 185, 80, 0.15)',
-          borderRadius: '8px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-             <div style={{ color: '#3fb950', fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase' }}>
-              Pipeline Success
-            </div>
-            {stats.silver_report && (
-              <div style={{ fontSize: '0.6rem', color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                SILVER LAYER: {stats.silver_report.quality_score}% CLEAN
-              </div>
-            )}
-          </div>
-
-          {stats.silver_report && (
-            <div style={{ 
-              marginBottom: '15px', 
-              padding: '8px', 
-              background: 'rgba(0,253,255,0.03)', 
-              borderRadius: '6px',
-              fontSize: '0.65rem',
-              color: 'var(--text-secondary)',
-              border: '1px solid rgba(0,253,255,0.05)'
-            }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
-                <span>📦 Bruts: {stats.silver_report.total_raw}</span>
-                <span>🧹 Doublons: {stats.silver_report.duplicates_removed}</span>
-                <span>🚫 Invalides: {stats.silver_report.invalid_rows_filtered}</span>
-                <span style={{ color: 'var(--accent-cyan)' }}>✨ Silver: {stats.silver_report.total_cleaned}</span>
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <div style={statItemStyle}>
-              <span style={statLabelStyle}>PLACED</span>
-              <span style={statValueStyle}>{stats.containers_placed}</span>
-            </div>
-            <div style={statItemStyle}>
-              <span style={statLabelStyle}>FAILED</span>
-              <span style={statValueStyle}>{stats.failed_placements}</span>
-            </div>
-            <div style={statItemStyle}>
-              <span style={statLabelStyle}>OCCUPANCY</span>
-              <span style={statValueStyle}>{stats.yard_occupancy}</span>
-            </div>
-            <div style={statItemStyle}>
-              <span style={statLabelStyle}>TIME</span>
-              <span style={statValueStyle}>{stats.processing_time_ms}ms</span>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
+// ── Styles partagés ──────────────────────────────────────────────────────────
 const statItemStyle = {
   display: 'flex',
   flexDirection: 'column',
@@ -289,16 +11,330 @@ const statItemStyle = {
   padding: '6px 8px',
   borderRadius: '4px'
 }
-
 const statLabelStyle = {
   fontSize: '0.55rem',
   color: 'var(--text-muted)',
   fontWeight: 700,
   letterSpacing: '0.5px'
 }
-
 const statValueStyle = {
   fontSize: '0.8rem',
   color: '#fff',
   fontWeight: 800
+}
+
+// ── Composant badge couche ────────────────────────────────────────────────────
+function LayerBadge({ label, color, icon }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: '5px',
+      padding: '2px 8px', borderRadius: '20px',
+      background: `${color}18`, border: `1px solid ${color}40`,
+      fontSize: '0.6rem', fontWeight: 800, color,
+      letterSpacing: '1px', textTransform: 'uppercase'
+    }}>
+      {icon} {label}
+    </div>
+  )
+}
+
+// ── Composant rapport couche ──────────────────────────────────────────────────
+function LayerReport({ title, color, icon, children }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{
+      marginBottom: '8px', borderRadius: '8px',
+      border: `1px solid ${color}25`,
+      background: `${color}08`, overflow: 'hidden'
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', background: 'none',
+          border: 'none', padding: '8px 12px', cursor: 'pointer',
+          color, fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px'
+        }}
+      >
+        <span>{icon} {title}</span>
+        <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: '0 12px 10px', fontSize: '0.62rem', color: 'var(--text-secondary)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Composant principal ───────────────────────────────────────────────────────
+export default function BatchUpload({ onUploadSuccess }) {
+  const [file, setFile] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  const handleFile = useCallback((f) => {
+    if (f && f.name.endsWith('.csv')) {
+      setFile(f)
+      setError(null)
+      setResult(null)
+    } else {
+      setError("Veuillez sélectionner un fichier .csv valide.")
+    }
+  }, [])
+
+  const handleFileChange = (e) => handleFile(e.target.files[0])
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    handleFile(e.dataTransfer.files[0])
+  }
+
+  const handleUpload = async () => {
+    if (!file) return
+    setLoading(true)
+    setError(null)
+    setResult(null)
+
+    try {
+      // Utiliser FormData pour envoyer le fichier en multipart
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await axios.post(
+        `${API_URL}/containers/upload-csv`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+      setResult(response.data)
+      if (onUploadSuccess) onUploadSuccess()
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      setError(
+        typeof detail === 'string'
+          ? detail
+          : "Erreur de connexion à la pipeline ETL."
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      marginTop: '25px', padding: '20px',
+      background: 'rgba(255,255,255,0.03)', borderRadius: '12px',
+      border: '1px solid rgba(255,255,255,0.05)'
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+          ETL Pipeline · CSV Upload
+        </span>
+      </div>
+
+      {/* Badges couches */}
+      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '15px' }}>
+        <LayerBadge label="Bronze" color="#cd7f32" icon="📦" />
+        <LayerBadge label="Silver" color="#a8b2c0" icon="🧹" />
+        <LayerBadge label="Gold"   color="#d4a017" icon="📊" />
+      </div>
+
+      {/* Zone de dépôt */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onClick={() => document.getElementById('csv-etl-input').click()}
+        style={{
+          marginBottom: '12px', padding: '16px',
+          background: dragOver ? 'rgba(0,253,255,0.07)' : 'rgba(255,255,255,0.02)',
+          border: `1px dashed ${dragOver ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.15)'}`,
+          borderRadius: '8px', textAlign: 'center', cursor: 'pointer',
+          transition: 'all 0.2s'
+        }}
+      >
+        <input type="file" accept=".csv" onChange={handleFileChange} id="csv-etl-input" style={{ display: 'none' }} />
+        <div style={{ fontSize: '1.2rem', marginBottom: '6px' }}>
+          {file ? '📄' : '📁'}
+        </div>
+        <div style={{
+          color: file ? 'var(--accent-cyan)' : 'var(--text-muted)',
+          fontSize: '0.72rem', fontWeight: 700
+        }}>
+          {file ? file.name : 'Glisser-déposer ou cliquer pour choisir'}
+        </div>
+        {file && (
+          <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {(file.size / 1024).toFixed(1)} KB
+          </div>
+        )}
+      </div>
+
+      {/* Bouton lancer */}
+      <button
+        onClick={handleUpload}
+        disabled={!file || loading}
+        style={{
+          width: '100%',
+          background: loading
+            ? 'rgba(255,255,255,0.05)'
+            : 'linear-gradient(135deg, #cd7f32, #d4a017, var(--accent-cyan))',
+          color: loading ? 'var(--text-secondary)' : '#000',
+          border: 'none', padding: '12px 16px',
+          borderRadius: '8px', fontWeight: 800,
+          fontSize: '0.75rem', textTransform: 'uppercase',
+          letterSpacing: '1px', cursor: file && !loading ? 'pointer' : 'default',
+          opacity: file ? 1 : 0.5, transition: 'all 0.2s',
+          boxShadow: (file && !loading) ? '0 4px 20px rgba(212, 160, 23, 0.4)' : 'none',
+          position: 'relative', overflow: 'hidden'
+        }}
+      >
+        {loading ? (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <span style={{
+              display: 'inline-block', width: '10px', height: '10px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderTopColor: 'var(--accent-cyan)', borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            Pipeline ETL en cours...
+          </span>
+        ) : '🚀 Lancer la Pipeline Bronze → Silver → Gold'}
+      </button>
+
+      {/* Erreur */}
+      {error && (
+        <div style={{
+          marginTop: '12px', padding: '10px 12px',
+          background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.25)',
+          borderRadius: '8px', color: '#f85149', fontSize: '0.7rem', fontWeight: 600
+        }}>
+          ❌ {error}
+        </div>
+      )}
+
+      {/* Résultat pipeline */}
+      {result && result.pipeline_status === 'SUCCESS' && (
+        <div style={{ marginTop: '14px' }}>
+
+          {/* Bannière succès */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: '10px', padding: '8px 10px',
+            background: 'rgba(63,185,80,0.07)', border: '1px solid rgba(63,185,80,0.2)',
+            borderRadius: '8px'
+          }}>
+            <span style={{ color: '#3fb950', fontWeight: 800, fontSize: '0.68rem', textTransform: 'uppercase' }}>
+              ✅ Pipeline Réussie
+            </span>
+            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+              {result.processing_time_ms}ms total
+            </span>
+          </div>
+
+          {/* KPIs placement */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+            <div style={statItemStyle}>
+              <span style={statLabelStyle}>BRONZE</span>
+              <span style={{ ...statValueStyle, color: '#cd7f32' }}>{result.bronze_report?.total_rows_ingested ?? '-'} lignes</span>
+            </div>
+            <div style={statItemStyle}>
+              <span style={statLabelStyle}>SILVER</span>
+              <span style={{ ...statValueStyle, color: '#a8b2c0' }}>{result.silver_report?.total_cleaned ?? '-'} valides</span>
+            </div>
+            <div style={statItemStyle}>
+              <span style={statLabelStyle}>PLACÉS</span>
+              <span style={{ ...statValueStyle, color: '#3fb950' }}>{result.containers_placed}</span>
+            </div>
+            <div style={statItemStyle}>
+              <span style={statLabelStyle}>OCCUPANCY</span>
+              <span style={{ ...statValueStyle, color: 'var(--accent-cyan)' }}>{result.yard_occupancy}</span>
+            </div>
+          </div>
+
+          {/* Rapport Bronze */}
+          {result.bronze_report && (
+            <LayerReport title="Rapport Bronze" color="#cd7f32" icon="📦">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                <span>📥 Ingérées: <strong>{result.bronze_report.total_rows_ingested}</strong></span>
+                <span>📄 Source: <strong>{result.bronze_report.source_file}</strong></span>
+              </div>
+            </LayerReport>
+          )}
+
+          {/* Rapport Silver */}
+          {result.silver_report && (
+            <LayerReport title="Rapport Silver" color="#a8b2c0" icon="🧹">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                <span>📦 Brutes: <strong>{result.silver_report.total_raw}</strong></span>
+                <span>🧹 Doublons: <strong>{result.silver_report.duplicates_removed}</strong></span>
+                <span>🚫 Nulles: <strong>{result.silver_report.invalid_nulls_removed}</strong></span>
+                <span>❌ Domaine: <strong>{result.silver_report.invalid_domain_removed}</strong></span>
+                <span style={{ gridColumn: 'span 2', marginTop: '4px' }}>
+                  ✨ Score qualité:{' '}
+                  <strong style={{ color: '#a8b2c0' }}>{result.silver_report.quality_score}%</strong>
+                </span>
+              </div>
+            </LayerReport>
+          )}
+
+          {/* Rapport Gold (KPIs) */}
+          {result.gold_kpis && result.gold_kpis.type_distribution && (
+            <LayerReport title="KPIs Gold" color="#d4a017" icon="📊">
+              <div style={{ marginBottom: '6px', fontWeight: 700, color: '#d4a017', fontSize: '0.6rem' }}>
+                Distribution par Type
+              </div>
+              {Object.entries(result.gold_kpis.type_distribution).map(([type, info]) => (
+                <div key={type} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                  <span style={{ textTransform: 'uppercase', fontWeight: 700 }}>{type}</span>
+                  <span>{info.count} ({info.percentage}%) — moy. {info.avg_weight_t}t</span>
+                </div>
+              ))}
+
+              {result.gold_kpis.size_distribution && (
+                <>
+                  <div style={{ marginTop: '8px', marginBottom: '4px', fontWeight: 700, color: '#d4a017', fontSize: '0.6rem' }}>
+                    Distribution par Taille
+                  </div>
+                  {Object.entries(result.gold_kpis.size_distribution).map(([size, info]) => (
+                    <div key={size} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span style={{ fontWeight: 700 }}>{size}</span>
+                      <span>{info.count} ({info.percentage}%)</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {result.gold_kpis.weight_stats && (
+                <>
+                  <div style={{ marginTop: '8px', marginBottom: '4px', fontWeight: 700, color: '#d4a017', fontSize: '0.6rem' }}>
+                    Statistiques Poids (tonnes)
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
+                    <span>Moy: <strong>{result.gold_kpis.weight_stats.avg_t}t</strong></span>
+                    <span>Écart: <strong>{result.gold_kpis.weight_stats.stddev_t}t</strong></span>
+                    <span>Min: <strong>{result.gold_kpis.weight_stats.min_t}t</strong></span>
+                    <span>Max: <strong>{result.gold_kpis.weight_stats.max_t}t</strong></span>
+                  </div>
+                </>
+              )}
+            </LayerReport>
+          )}
+        </div>
+      )}
+
+      {/* Keyframe pour le spinner */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
 }
