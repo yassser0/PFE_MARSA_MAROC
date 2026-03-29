@@ -76,8 +76,10 @@ class SilverLayerSpark:
         df = df.withColumn(
             "departure_time",
             F.coalesce(
-                F.to_timestamp(F.col("departure_time"), "M/d/yyyy H:mm"),
+                F.to_timestamp(F.col("departure_time")),  # Auto ISO-8601 (handles microseconds)
+                F.to_timestamp(F.col("departure_time"), "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"),
                 F.to_timestamp(F.col("departure_time"), "yyyy-MM-dd'T'HH:mm:ss"),
+                F.to_timestamp(F.col("departure_time"), "M/d/yyyy H:mm"),
                 F.to_timestamp(F.col("departure_time"), "yyyy-MM-dd HH:mm:ss"),
                 F.to_timestamp(F.col("departure_time"), "yyyy-MM-dd"),
             )

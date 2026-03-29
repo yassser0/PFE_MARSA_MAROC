@@ -110,14 +110,14 @@ export default function BatchUpload({ onUploadSuccess }) {
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )
-      
+
       if (response.data.status === 'processing') {
         // 2. Commencer le polling
         const pollInterval = setInterval(async () => {
           try {
             const statusRes = await axios.get(`${API_URL}/containers/upload-status`)
             const job = statusRes.data
-            
+
             if (job.status === 'success') {
               clearInterval(pollInterval)
               setResult(job.result)
@@ -136,10 +136,10 @@ export default function BatchUpload({ onUploadSuccess }) {
           }
         }, 1000) // Polling toutes les secondes
       } else {
-         // Fallback just in case
-         setResult(response.data)
-         setLoading(false)
-         if (onUploadSuccess) onUploadSuccess()
+        // Fallback just in case
+        setResult(response.data)
+        setLoading(false)
+        if (onUploadSuccess) onUploadSuccess()
       }
     } catch (err) {
       setLoading(false)
@@ -174,7 +174,7 @@ export default function BatchUpload({ onUploadSuccess }) {
       <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '15px' }}>
         <LayerBadge label="Bronze" color="#cd7f32" icon="📦" />
         <LayerBadge label="Silver" color="#a8b2c0" icon="🧹" />
-        <LayerBadge label="Gold"   color="#d4a017" icon="📊" />
+        <LayerBadge label="Gold" color="#d4a017" icon="📊" />
       </div>
 
       {/* Zone de dépôt */}
@@ -237,7 +237,7 @@ export default function BatchUpload({ onUploadSuccess }) {
             }} />
             Pipeline ETL en cours...
           </span>
-        ) : '🚀 Lancer la Pipeline Bronze → Silver → Gold'}
+        ) : 'Lancer le traitement de données '}
       </button>
 
       {/* Erreur */}

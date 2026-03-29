@@ -6,19 +6,18 @@ export default function ContainerTable({ yardData, searchQuery, onSelectContaine
 
   // Extraire tous les conteneurs du yard
   const allContainers = useMemo(() => {
-    if (!yardData) return []
+    if (!yardData || !Array.isArray(yardData.blocks)) return []
     const list = []
-    Object.values(yardData.blocks || {}).forEach(block => {
-      Object.values(block.bays || {}).forEach(bay => {
-        Object.values(bay.rows || {}).forEach(row => {
-          (row.tiers || []).forEach(slot => {
-            if (slot.container) {
-              list.push({
-                ...slot.container,
-                slotId: slot.localization
-              })
-            }
-          })
+    yardData.blocks.forEach(block => {
+      (block.stacks || []).forEach(stack => {
+        (stack.slots || []).forEach(slot => {
+          if (!slot.is_free && slot.container_id && slot.container_details) {
+            list.push({
+              id: slot.container_id,
+              ...slot.container_details,
+              slotId: slot.container_details.location
+            })
+          }
         })
       })
     })

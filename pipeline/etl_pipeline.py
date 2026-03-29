@@ -65,6 +65,7 @@ class ETLPipeline:
                 .config("spark.sql.shuffle.partitions", "4")
                 .config("spark.sql.adaptive.enabled", "true")
                 .config("spark.ui.showConsoleProgress", "false")
+                .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
             )
 
             if USE_HDFS:
