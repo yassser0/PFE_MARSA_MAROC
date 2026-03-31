@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import containers, slots, yard, streaming
 from data_generator.generator import generate_yard
 from api.database import db
+from datetime import datetime
 
 
 @asynccontextmanager
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
     # Création du yard initial (Dynamique 4 blocs, 24 travées, 12 rangées)
     app.state.yard = generate_yard(blocks=4, bays=24, rows=12, max_height=5)
     app.state.container_registry = {}
+    app.state.last_reset_time = datetime.now()
     
     # État global du job ETL asynchrone pour éviter les conflits
     app.state.etl_job = {

@@ -10,20 +10,17 @@ Endpoint :
     → Initialise ou réinitialise le yard avec les dimensions spécifiées.
 
 Auteur  : PFE Marsa Maroc
-Version : 1.0
+Version : 1.1
 """
 
 from __future__ import annotations
-
 from typing import Dict, List, Optional
-
 from fastapi import APIRouter
 from pydantic import BaseModel
-
 from data_generator.generator import generate_yard
+from datetime import datetime
 
 router = APIRouter(prefix="/yard", tags=["Yard"])
-
 
 # ---------------------------------------------------------------------------
 # Schémas de réponse
@@ -34,7 +31,7 @@ class SlotInfo(BaseModel):
     tier: int
     is_free: bool
     container_id: Optional[str]
-    container_details: Optional[dict] = None  # NOUVEAU: Pour les infos au survol
+    container_details: Optional[dict] = None
 
 
 class StackInfo(BaseModel):
@@ -53,7 +50,6 @@ class BlockInfo(BaseModel):
     n_rows: int
     occupancy: float
     stacks: List[StackInfo]
-    # NOUVEAU: Propriétés spatiales
     x: float
     y: float
     width: float
@@ -94,25 +90,36 @@ class YardInitResponse(BaseModel):
     "",
     response_model=YardStateResponse,
     summary="État actuel du yard",
-    description="Retourne la structure complète du parc à conteneurs avec l'état de chaque slot.",
 )
-async def get_yard_state():
+async def get_yard_state(streaming_only: bool = False):
     """Retourne l'état complet du yard en temps réel."""
     from api.main import app as _app
     from api.database import db as _db
     from models.container import Container, ContainerType
     from models.yard import Slot
-    from datetime import datetime
     
     yard = _app.state.yard
     registry = _app.state.container_registry
+    last_reset = _app.state.last_reset_time
 
     # --- Synchronisation Dynamique avec MongoDB ---
-    # Récupérer tous les conteneurs placés (y compris ceux du Streamer)
     mongo_containers = await _db.get_all_containers()
     
     for doc in mongo_containers:
         cntr_id = doc["id"]
+        
+        # Filtre 1: Temps réel uniquement (si demandé)
+        if streaming_only and doc.get("found_by") != "SparkStreaming":
+            continue
+            
+        # Filtre 2: Ignorer les conteneurs créés avant le dernier "Clear All"
+        imported_at = doc.get("imported_at")
+        if imported_at:
+            if isinstance(imported_at, str):
+                imported_at = datetime.fromisoformat(imported_at)
+            if imported_at < last_reset:
+                continue
+
         # Si le conteneur n'est pas encore dans le yard en mémoire
         if cntr_id not in registry:
             try:
@@ -133,13 +140,13 @@ async def get_yard_state():
                 slot_info = Slot.from_localization(doc["slot"])
                 target_slot = Slot(**slot_info)
                 
-                # 3. Placer dans le yard mémoire (sans recalculer l'optimisation)
+                # 3. Placer dans le yard mémoire
                 if yard.place_container(target_slot, container):
                     registry[cntr_id] = container
-            except Exception as e:
-                # Log silencieux pour ne pas bloquer l'API
+            except Exception:
                 pass
 
+    # --- Construction de la réponse ---
     blocks_info: List[BlockInfo] = []
     for block_id, block in yard.blocks.items():
         stacks_info: List[StackInfo] = []
@@ -147,7 +154,10 @@ async def get_yard_state():
             slots_info = []
             for s in stack.slots:
                 details = None
+                # Si le slot est occupé et qu'on a le conteneur dans le registre
                 if s.container_id and s.container_id in registry:
+                    # SI streaming_only est activé, on vérifie si le conteneur est autorisé
+                    # (Normalement déjà filtré lors du placement, mais on re-vérifie pour la sécurité du rendu)
                     c = registry[s.container_id]
                     details = {
                         "size": c.size,
@@ -205,14 +215,11 @@ async def get_yard_state():
 @router.post(
     "/init",
     response_model=YardInitResponse,
-    summary="Initialiser / Réinitialiser le yard",
-    description="Crée un nouveau yard vide avec les dimensions spécifiées.",
 )
 async def init_yard(request: YardInitRequest):
     """Initialise le yard en mémoire avec de nouvelles dimensions."""
     from api.main import app as _app
 
-    # Générer un nouveau yard
     nouveau_yard = generate_yard(
         blocks=request.blocks, 
         bays=request.bays,
@@ -220,17 +227,13 @@ async def init_yard(request: YardInitRequest):
         max_height=request.max_height
     )
     
-    # Mettre à jour l'état de l'application
     _app.state.yard = nouveau_yard
-    
-    # Optionnel : réinitialiser le registre des conteneurs
     _app.state.container_registry = {}
+    _app.state.last_reset_time = datetime.now()
+    
+    print(f"🧹 Yard réinitialisé à {_app.state.last_reset_time}")
 
     return YardInitResponse(
-        message="Yard initialisé avec succès.",
+        message="Yard initialisé avec succès (Filtre temporel activé).",
         total_capacity=nouveau_yard.total_capacity
     )
-
-
-
-

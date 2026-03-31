@@ -231,6 +231,39 @@ export default function Sidebar({
         {/* Batch Upload Section */}
         <BatchUpload onUploadSuccess={onUploadSuccess || onRefresh} />
 
+        {/* Real-Time Filter Toggle */}
+        <section style={{ marginTop: '25px', padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-cyan)', boxShadow: '0 0 8px var(--accent-cyan)' }} />
+              <span style={{ fontSize: '0.7rem', color: '#fff', fontWeight: 700, textTransform: 'uppercase' }}>
+                Mode Streaming
+              </span>
+            </div>
+            <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '34px', height: '20px' }}>
+              <input 
+                type="checkbox" 
+                checked={streamingOnly} 
+                onChange={(e) => setStreamingOnly(e.target.checked)}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span className="slider" style={{
+                position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: streamingOnly ? 'var(--accent-cyan)' : '#333',
+                transition: '.4s', borderRadius: '34px'
+              }}>
+                <span style={{
+                  position: 'absolute', height: '14px', width: '14px', left: streamingOnly ? '17px' : '3px', bottom: '3px',
+                  backgroundColor: '#fff', transition: '.4s', borderRadius: '50%'
+                }} />
+              </span>
+            </label>
+          </div>
+          <p style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', marginTop: '8px', lineHeight: '1.4' }}>
+            Affiche uniquement les conteneurs reçus via le flux Spark en temps réel.
+          </p>
+        </section>
+
         {/* Global Actions */}
         <section style={{ marginTop: '35px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button onClick={onRefresh} style={secondaryButtonStyle}>

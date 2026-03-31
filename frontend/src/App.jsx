@@ -22,11 +22,12 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContainer, setSelectedContainer] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [streamingOnly, setStreamingOnly] = useState(false)
   const intervalRef = useRef(null)
 
   const fetchYardData = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_URL}/yard?_t=${Date.now()}`)
+      const res = await axios.get(`${API_URL}/yard?streaming_only=${streamingOnly}&_t=${Date.now()}`)
       setYardData(res.data)
       setApiOnline(true)
       setLastRefresh(new Date())
@@ -35,7 +36,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [streamingOnly])
 
   // Auto-refresh every 15 seconds
   useEffect(() => {
@@ -88,6 +89,8 @@ export default function App() {
         onUploadSuccess={handleUploadSuccess}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        streamingOnly={streamingOnly}
+        setStreamingOnly={setStreamingOnly}
       />
 
       <div className="main-content">
