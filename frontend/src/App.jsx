@@ -7,10 +7,11 @@ import BlockDetailView from './components/BlockDetailView'
 import AnalyticsView from './components/AnalyticsView'
 import ContainerTable from './components/ContainerTable'
 import ContainerInfoDrawer from './components/ContainerInfoDrawer'
+import LiveMonitor from './components/LiveMonitor'
 import logo from './assets/logo.png'
 
 const API_URL = 'http://127.0.0.1:8000'
-const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique', 'Tableau des Conteneurs']
+const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique', 'Tableau des Conteneurs', 'Flux Direct (Live)']
 
 export default function App() {
   const [yardData, setYardData] = useState(null)
@@ -164,6 +165,10 @@ export default function App() {
               searchQuery={searchQuery}
               onSelectContainer={setSelectedContainer}
             />
+          )}
+
+          {!loading && yardData && activeTab === 'Flux Direct (Live)' && (
+            <LiveMonitor />
           )}
         </div>
       </div>

@@ -28,8 +28,11 @@ HDFS_URL  = f"hdfs://{HDFS_HOST}:{HDFS_PORT}"
 HDFS_DIRS = [
     "/marsa_maroc",
     "/marsa_maroc/bronze",
+    "/marsa_maroc/bronze/streaming",
     "/marsa_maroc/silver",
+    "/marsa_maroc/silver/streaming",
     "/marsa_maroc/gold",
+    "/marsa_maroc/gold/streaming",
     "/marsa_maroc/raw",
 ]
 
