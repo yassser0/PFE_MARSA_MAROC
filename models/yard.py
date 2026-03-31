@@ -79,7 +79,7 @@ class Slot:
         # Pattern avec ou sans tirets pour la flexibilité
         # Groupes: (BLOC)-(TRAVEE)-(CELLULE)-(NIVEAU)
         clean_loc = loc.upper().replace(" ", "")
-        pattern = r"^([A-Z]{1,2})[-]?(\d{3})[-]?([A-F])[-]?(\d{2})$"
+        pattern = r"^([A-Z]{1,2})[-]?(\d{3})[-]?([A-Z])[-]?(\d{2})$"
         match = re.match(pattern, clean_loc)
         if not match:
             raise ValueError(f"Format de localisation invalide: {loc}")
