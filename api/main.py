@@ -33,8 +33,8 @@ async def lifespan(app: FastAPI):
     # Initialisation de la base de données MongoDB
     await db.connect_to_storage()
 
-    # Création du yard initial
-    app.state.yard = generate_yard(blocks=4, bays=10, rows=3, max_height=4)
+    # Création du yard initial (Dynamique 4 blocs, 24 travées, 12 rangées)
+    app.state.yard = generate_yard(blocks=4, bays=24, rows=12, max_height=5)
     app.state.container_registry = {}
     
     # État global du job ETL asynchrone pour éviter les conflits

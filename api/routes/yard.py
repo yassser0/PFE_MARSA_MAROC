@@ -99,9 +99,46 @@ class YardInitResponse(BaseModel):
 async def get_yard_state():
     """Retourne l'état complet du yard en temps réel."""
     from api.main import app as _app
-
+    from api.database import db as _db
+    from models.container import Container, ContainerType
+    from models.yard import Slot
+    from datetime import datetime
+    
     yard = _app.state.yard
     registry = _app.state.container_registry
+
+    # --- Synchronisation Dynamique avec MongoDB ---
+    # Récupérer tous les conteneurs placés (y compris ceux du Streamer)
+    mongo_containers = await _db.get_all_containers()
+    
+    for doc in mongo_containers:
+        cntr_id = doc["id"]
+        # Si le conteneur n'est pas encore dans le yard en mémoire
+        if cntr_id not in registry:
+            try:
+                # 1. Créer l'objet Container
+                dep_dt = doc["departure_time"]
+                if isinstance(dep_dt, str):
+                    dep_dt = datetime.fromisoformat(dep_dt)
+                
+                container = Container(
+                    id=cntr_id,
+                    size=doc["size"],
+                    weight=doc["weight"],
+                    departure_time=dep_dt,
+                    type=ContainerType(doc["type"])
+                )
+                
+                # 2. Convertir le slot string en objet Slot
+                slot_info = Slot.from_localization(doc["slot"])
+                target_slot = Slot(**slot_info)
+                
+                # 3. Placer dans le yard mémoire (sans recalculer l'optimisation)
+                if yard.place_container(target_slot, container):
+                    registry[cntr_id] = container
+            except Exception as e:
+                # Log silencieux pour ne pas bloquer l'API
+                pass
 
     blocks_info: List[BlockInfo] = []
     for block_id, block in yard.blocks.items():

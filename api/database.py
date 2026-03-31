@@ -50,4 +50,16 @@ class MongoDB:
             print(f"❌ Erreur lors de la sauvegarde MongoDB : {e}")
             return False
 
+    @classmethod
+    async def get_all_containers(cls):
+        """Récupère tous les conteneurs avec un slot assigné."""
+        if cls.db is None:
+            return []
+        try:
+            cursor = cls.db.containers.find({"slot": {"$exists": True}})
+            return await cursor.to_list(length=5000)
+        except Exception as e:
+            print(f"❌ Erreur lecture MongoDB : {e}")
+            return []
+
 db = MongoDB()
