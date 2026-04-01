@@ -117,8 +117,11 @@ async def get_yard_state(streaming_only: bool = False):
         if imported_at:
             if isinstance(imported_at, str):
                 imported_at = datetime.fromisoformat(imported_at)
-            if imported_at < last_reset:
-                continue
+        else:
+            imported_at = datetime.min
+            
+        if imported_at < last_reset:
+            continue
 
         # Si le conteneur n'est pas encore dans le yard en mémoire
         if cntr_id not in registry:

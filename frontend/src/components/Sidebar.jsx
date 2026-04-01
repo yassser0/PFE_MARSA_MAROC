@@ -4,7 +4,7 @@ import BatchUpload from './BatchUpload'
 
 export default function Sidebar({
   apiOnline, lastRefresh, onInit, onClear, onRefresh, onUploadSuccess,
-  searchQuery, onSearchChange
+  searchQuery, onSearchChange, streamingOnly, setStreamingOnly
 }) {
   const [blocks, setBlocks] = useState(4)
   const [bays, setBays] = useState(10)

@@ -29,6 +29,11 @@ class MongoDB:
         """Sauvegarde ou met à jour un conteneur dans MongoDB."""
         if cls.db is None:
             return False
+            
+        from datetime import datetime
+        if "imported_at" not in container_data:
+            container_data["imported_at"] = datetime.now().isoformat()
+            
         try:
             await cls.db.containers.update_one(
                 {"id": container_data["id"]},
@@ -38,6 +43,31 @@ class MongoDB:
             return True
         except Exception as e:
             print(f"❌ Erreur lors de la sauvegarde MongoDB : {e}")
+            return False
+
+    @classmethod
+    async def save_containers(cls, containers_data: list[dict]):
+        """Sauvegarde ou met à jour une liste de conteneurs en masse (bulk_write) dans MongoDB."""
+        if cls.db is None or not containers_data:
+            return False
+            
+        from datetime import datetime
+        now_str = datetime.now().isoformat()
+        for c in containers_data:
+            if "imported_at" not in c:
+                c["imported_at"] = now_str
+                
+        try:
+            from pymongo import UpdateOne
+            operations = [
+                UpdateOne({"id": c["id"]}, {"$set": c}, upsert=True)
+                for c in containers_data
+            ]
+            await cls.db.containers.bulk_write(operations)
+            print(f"✅ {len(containers_data)} conteneurs ont été bien sauvegardés dans MongoDB.")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur lors de la sauvegarde en masse MongoDB : {e}")
             return False
 
     @classmethod
