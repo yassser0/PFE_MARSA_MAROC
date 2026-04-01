@@ -41,7 +41,7 @@ class GoldLayer:
         self.spark = spark
         self.storage_mode = storage_mode
 
-    def _get_parquet_path(self, timestamp_str: str) -> str:
+    def _get_output_path(self, timestamp_str: str) -> str:
         if self.storage_mode == "hdfs":
             return f"{HDFS_GOLD}/kpis_{timestamp_str}"
         base = os.path.abspath(LOCAL_GOLD)
@@ -132,8 +132,8 @@ class GoldLayer:
             "quality_score_pct": silver_report.get("quality_score", 0.0),
         }
 
-        # ── Persistance Parquet : agregation directe Spark (sans createDataFrame)
-        parquet_path = self._get_parquet_path(timestamp_str)
+        # ── Persistance Delta Lake (Data Lakehouse)
+        parquet_path = self._get_output_path(timestamp_str)
         (
             df_clean.groupBy("type", "size")
             .agg(
@@ -142,8 +142,9 @@ class GoldLayer:
                 F.round(F.min("weight"), 2).alias("min_weight_t"),
                 F.round(F.max("weight"), 2).alias("max_weight_t"),
             )
-            .write.mode("overwrite")
-            .parquet(parquet_path)
+            .write.format("delta")
+            .mode("overwrite")
+            .save(parquet_path)
         )
 
         # ── JSON local (toujours — pour l'API FastAPI)

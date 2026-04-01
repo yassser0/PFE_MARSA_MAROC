@@ -61,11 +61,15 @@ class ETLPipeline:
                 SparkSession.builder
                 .master("local[*]")
                 .appName("MarsaMaroc_ETL_Pipeline_HDFS")
-                .config("spark.driver.memory", "1g")
+                .config("spark.driver.memory", "2g")  # Increased for Delta processing
                 .config("spark.sql.shuffle.partitions", "4")
                 .config("spark.sql.adaptive.enabled", "true")
                 .config("spark.ui.showConsoleProgress", "false")
                 .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
+                # --- Delta Lake Configuration ---
+                .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+                .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+                .config("spark.jars.packages", "io.delta:delta-spark_2.12:3.0.0")
             )
 
             if USE_HDFS:
@@ -83,7 +87,7 @@ class ETLPipeline:
 
             self._spark = builder.getOrCreate()
             self._spark.sparkContext.setLogLevel("ERROR")
-            print(f"  [ETL] SparkSession prete. HDFS: {HDFS_BASE_PATH if USE_HDFS else 'desactive'}")
+            print(f"  [ETL] SparkSession prete (Delta Lake Active). HDFS: {HDFS_BASE_PATH if USE_HDFS else 'desactive'}")
         return self._spark
 
     def _check_hdfs_available(self) -> bool:

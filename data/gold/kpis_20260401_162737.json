@@ -1,0 +1,51 @@
+{
+  "computed_at": "2026-04-01T16:27:37.855143",
+  "total_containers": 1401,
+  "storage_mode": "hdfs",
+  "type_distribution": {
+    "import": {
+      "count": 661,
+      "percentage": 47.2,
+      "avg_weight_t": 18.1
+    },
+    "export": {
+      "count": 512,
+      "percentage": 36.5,
+      "avg_weight_t": 15.13
+    },
+    "transshipment": {
+      "count": 228,
+      "percentage": 16.3,
+      "avg_weight_t": 17.67
+    }
+  },
+  "size_distribution": {
+    "20ft": {
+      "count": 528,
+      "percentage": 37.7,
+      "avg_weight_t": 16.35
+    },
+    "40ft": {
+      "count": 873,
+      "percentage": 62.3,
+      "avg_weight_t": 17.31
+    }
+  },
+  "weight_stats": {
+    "avg_t": 16.94,
+    "min_t": 5.07,
+    "max_t": 29.96,
+    "stddev_t": 6.22
+  },
+  "time_window": {
+    "earliest_departure": "2026-03-05T06:00:00",
+    "latest_departure": "2026-03-29T20:24:23"
+  },
+  "pipeline_quality": {
+    "total_raw_ingested": 1431,
+    "total_after_silver": 1401,
+    "duplicates_removed": 16,
+    "invalid_removed": 14,
+    "quality_score_pct": 97.9
+  }
+}

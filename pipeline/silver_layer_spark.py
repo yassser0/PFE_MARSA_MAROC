@@ -119,22 +119,35 @@ class SilverLayerSpark:
             F.date_format(F.col("departure_time"), "yyyy-MM-dd'T'HH:mm:ss")
         )
 
+        # Etape 6 : Partitionnement technique (Date extraction)
+        df_clean = df_clean.withColumn(
+            "departure_date", 
+            F.to_date(F.col("departure_time"))
+        )
+
         total_clean    = df_clean.count()
         invalid_domain = df_deduped.count() - total_clean
 
-        # Etape 6 : Persistance Parquet (HDFS ou local)
+        # Etape 7 : Persistance Delta Lake (HDFS ou local) avec partitionnement
+        # Partitionnement par type (faible cardinalite) et date (utile pour filtres temporels)
         output_path = self._get_output_path(timestamp_str)
-        df_clean.write.mode("overwrite").parquet(output_path)
+        (
+            df_clean.write.format("delta")
+            .mode("overwrite")
+            .partitionBy("type", "departure_date")
+            .save(output_path)
+        )
 
         quality_score = round((total_clean / total_raw) * 100, 1) if total_raw > 0 else 0.0
 
-        storage_label = f"HDFS : {output_path}" if self.storage_mode == "hdfs" else f"LOCAL : {output_path}"
-        print(f"  [SILVER] {total_clean}/{total_raw} lignes valides (qualite: {quality_score}%) -> {storage_label}")
+        storage_label = f"HDFS Delta : {output_path}" if self.storage_mode == "hdfs" else f"LOCAL Delta : {output_path}"
+        print(f"  [SILVER] {total_clean}/{total_raw} lignes valides (Data Lakehouse Delta) -> {storage_label}")
 
         return df_clean, {
             "layer":                   "SILVER",
             "status":                  "SUCCESS",
             "storage_mode":            self.storage_mode,
+            "format":                  "delta",
             "total_raw":               total_raw,
             "invalid_nulls_removed":   invalid_nulls,
             "duplicates_removed":      duplicates_removed,
