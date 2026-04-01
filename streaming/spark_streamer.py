@@ -31,6 +31,9 @@ HDFS_NAMENODE = os.getenv("HDFS_NAMENODE", "hdfs://localhost:9000")
 INPUT_PATH    = f"{HDFS_NAMENODE}/marsa_maroc/bronze/streaming"
 CHECKPOINT_DIR = f"{HDFS_NAMENODE}/marsa_maroc/checkpoints/streaming"
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+import sys
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 OUTPUT_JSON    = os.path.join(BASE_DIR, "data", "gold", "live_kpis.json")
 
 # Connection MongoDB (Sync for Spark Driver)

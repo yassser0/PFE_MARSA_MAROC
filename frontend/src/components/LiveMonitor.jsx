@@ -48,7 +48,10 @@ export default function LiveMonitor() {
     )
   }
 
-  const { total_arrivals, by_type, window_start, window_end } = data
+  const { last_update, batch_id, total_placed_in_stream, yard_occupancy, last_container } = data || {}
+  
+  // Format date if exists
+  const luDt = last_update ? new Date(last_update).toLocaleTimeString() : 'N/A'
 
   return (
     <div className="live-monitor">
@@ -58,30 +61,26 @@ export default function LiveMonitor() {
           EN DIRECT
         </div>
         <div className="live-meta">
-          Fenêtre : {new Date(window_start).toLocaleTimeString()} - {new Date(window_end).toLocaleTimeString()}
+          Dernière mise à jour : {luDt} (Batch #{batch_id || 0})
         </div>
       </div>
 
       <div className="live-stats-grid">
         <div className="live-card highlight">
-          <h3>Arrivées (10 min)</h3>
-          <div className="value">{total_arrivals}</div>
-          <div className="subtitle">Conteneurs détectés</div>
+          <h3>Placés via Streaming</h3>
+          <div className="value">{total_placed_in_stream || 0}</div>
+          <div className="subtitle">Conteneurs insérés en temps réel</div>
         </div>
 
-        {Object.entries(by_type).map(([type, stats]) => (
-          <div key={type} className="live-card">
-            <h3>Type: {type}</h3>
-            <div className="value-small">{stats.count} unités</div>
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${(stats.count / total_arrivals) * 100}%` }} 
-              />
-            </div>
-            <div className="footer-stat">Poids moy: {stats.avg_weight} t</div>
-          </div>
-        ))}
+        <div className="live-card">
+          <h3>Dernier Conteneur</h3>
+          <div className="value-small" style={{marginTop: '15px'}}>{last_container || 'Aucun'}</div>
+        </div>
+        
+        <div className="live-card">
+          <h3>Occupation Portuaire</h3>
+          <div className="value-small" style={{marginTop: '15px'}}>{yard_occupancy || '0%'}</div>
+        </div>
       </div>
 
       <div className="live-info-box">
