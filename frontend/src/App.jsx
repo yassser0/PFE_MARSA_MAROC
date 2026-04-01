@@ -7,11 +7,10 @@ import BlockDetailView from './components/BlockDetailView'
 import AnalyticsView from './components/AnalyticsView'
 import ContainerTable from './components/ContainerTable'
 import ContainerInfoDrawer from './components/ContainerInfoDrawer'
-import LiveMonitor from './components/LiveMonitor'
 import logo from './assets/logo.png'
 
 const API_URL = 'http://127.0.0.1:8000'
-const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique', 'Tableau des Conteneurs', 'Flux Direct (Live)']
+const TABS = ['Vue Globale 3D', 'Vue Détail Bloc', 'Heatmap & Analytique', 'Tableau des Conteneurs']
 
 export default function App() {
   const [yardData, setYardData] = useState(null)
@@ -22,21 +21,18 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContainer, setSelectedContainer] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(new Date())
-  const [streamingOnly, setStreamingOnly] = useState(false)
   const intervalRef = useRef(null)
 
   const fetchYardData = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_URL}/yard?streaming_only=${streamingOnly}&_t=${Date.now()}`)
+      const res = await axios.get(`${API_URL}/yard?_t=${Date.now()}`)
       setYardData(res.data)
       setApiOnline(true)
       setLastRefresh(new Date())
-    } catch {
-      setApiOnline(false)
     } finally {
       setLoading(false)
     }
-  }, [streamingOnly])
+  }, [])
 
   // Auto-refresh every 15 seconds
   useEffect(() => {
@@ -89,8 +85,6 @@ export default function App() {
         onUploadSuccess={handleUploadSuccess}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        streamingOnly={streamingOnly}
-        setStreamingOnly={setStreamingOnly}
       />
 
       <div className="main-content">
@@ -168,10 +162,6 @@ export default function App() {
               searchQuery={searchQuery}
               onSelectContainer={setSelectedContainer}
             />
-          )}
-
-          {!loading && yardData && activeTab === 'Flux Direct (Live)' && (
-            <LiveMonitor />
           )}
         </div>
       </div>

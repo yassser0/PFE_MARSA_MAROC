@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import containers, slots, yard, streaming
+from api.routes import containers, slots, yard
 from data_generator.generator import generate_yard
 from api.database import db
 from datetime import datetime
@@ -75,7 +75,6 @@ app.add_middleware(
 app.include_router(containers.router)
 app.include_router(yard.router)
 app.include_router(slots.router)
-app.include_router(streaming.router)
 
 
 @app.get("/", tags=["Health"])

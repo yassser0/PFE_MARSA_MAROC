@@ -91,7 +91,7 @@ class YardInitResponse(BaseModel):
     response_model=YardStateResponse,
     summary="État actuel du yard",
 )
-async def get_yard_state(streaming_only: bool = False):
+async def get_yard_state():
     """Retourne l'état complet du yard en temps réel."""
     from api.main import app as _app
     from api.database import db as _db
@@ -108,11 +108,7 @@ async def get_yard_state(streaming_only: bool = False):
     for doc in mongo_containers:
         cntr_id = doc["id"]
         
-        # Filtre 1: Temps réel uniquement (si demandé)
-        if streaming_only and doc.get("found_by") != "SparkStreaming":
-            continue
-            
-        # Filtre 2: Ignorer les conteneurs créés avant le dernier "Clear All"
+        # Filtre 1: Ignorer les conteneurs créés avant le dernier "Clear All"
         imported_at = doc.get("imported_at")
         if imported_at:
             if isinstance(imported_at, str):
@@ -159,8 +155,6 @@ async def get_yard_state(streaming_only: bool = False):
                 details = None
                 # Si le slot est occupé et qu'on a le conteneur dans le registre
                 if s.container_id and s.container_id in registry:
-                    # SI streaming_only est activé, on vérifie si le conteneur est autorisé
-                    # (Normalement déjà filtré lors du placement, mais on re-vérifie pour la sécurité du rendu)
                     c = registry[s.container_id]
                     details = {
                         "size": c.size,
@@ -233,6 +227,9 @@ async def init_yard(request: YardInitRequest):
     _app.state.yard = nouveau_yard
     _app.state.container_registry = {}
     _app.state.last_reset_time = datetime.now()
+    
+    from api.database import db as _db
+    await _db.db.containers.update_many({"slot": {"$exists": True}}, {"$unset": {"slot": ""}})
     
     print(f"🧹 Yard réinitialisé à {_app.state.last_reset_time}")
 
