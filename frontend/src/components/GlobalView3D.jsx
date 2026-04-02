@@ -277,6 +277,72 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
           })}
         </group>
       ))}
+
+      {/* Zone Tampon (Buffer Zone) */}
+      {yardData?.buffer_zone?.length > 0 && (() => {
+        // Find minX to place buffer zone to the left of the main yard
+        let minX = Infinity;
+        yardData.blocks.forEach(b => {
+          const halfW = b.width / 2;
+          minX = Math.min(minX, b.x - halfW);
+        });
+
+        const bufferZoneX = minX - 40; 
+        const bufferZoneZ = 0; 
+        
+        return (
+          <group position={[bufferZoneX, 0, bufferZoneZ]}>
+            {/* Base platform */}
+            <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+               <planeGeometry args={[25, 80]} />
+               <meshStandardMaterial color="#d29922" transparent opacity={0.15} />
+            </mesh>
+            
+            {/* Label */}
+            <Text
+              position={[0, 0.1, 45]}
+              rotation={[-Math.PI / 2, 0, 0]}
+              fontSize={5}
+              color="#d29922"
+              anchorX="center"
+              anchorY="middle"
+            >
+              ZONE TAMPON EXCEPTION
+            </Text>
+
+            {/* Render Containers array */}
+            {yardData.buffer_zone.map((c, index) => {
+              // Layout them in a grid
+              const cols = 5;
+              const row = Math.floor(index / cols);
+              const col = index % cols;
+              // Add some offset
+              const xPos = (col - cols/2 + 0.5) * 3;
+              const zPos = (row - 5) * 7; 
+              
+              const isMatch = searchQuery && (c.id === searchQuery || c.location === searchQuery);
+
+              // Pseudo-slot for styling
+              const dummySlot = {
+                 container_details: { type: c.type, weight: c.weight }
+              };
+              
+              return (
+                 <ContainerModel 
+                   key={c.id}
+                   position={[xPos, 1.3, zPos]}
+                   color={getStatusColor(dummySlot)}
+                   data={{ id: c.id, ...c }}
+                   onSelect={onSelectContainer}
+                   onHover={onHover}
+                   isMatch={isMatch}
+                   opacity={1.0}
+                 />
+              )
+            })}
+          </group>
+        )
+      })()}
       <ContactShadows opacity={0.6} scale={500} blur={2} far={10} color="#000000" />
     </>
   )

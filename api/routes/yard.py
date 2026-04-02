@@ -68,6 +68,7 @@ class YardStateResponse(BaseModel):
     occupancy_rate: float
     average_stack_height: float
     blocks: List[BlockInfo]
+    buffer_zone: List[dict] = []
 
 class YardInitRequest(BaseModel):
     """Requête d'initialisation du yard."""
@@ -207,6 +208,15 @@ async def get_yard_state():
         occupancy_rate=round(yard.occupancy_rate, 4),
         average_stack_height=round(yard.average_stack_height, 4),
         blocks=blocks_info,
+        buffer_zone=[
+            {
+                "id": c.id,
+                "size": c.size,
+                "weight": c.weight,
+                "type": c.type.value if hasattr(c.type, 'value') else c.type,
+                "departure_time": c.departure_time.strftime("%Y-%m-%d %H:%M") if hasattr(c.departure_time, 'strftime') else str(c.departure_time)
+            } for c in getattr(_app.state, "buffer_zone", [])
+        ],
     )
 
 @router.post(
@@ -227,6 +237,7 @@ async def init_yard(request: YardInitRequest):
     _app.state.yard = nouveau_yard
     _app.state.container_registry = {}
     _app.state.last_reset_time = datetime.now()
+    _app.state.buffer_zone = []
     
     from api.database import db as _db
     await _db.db.containers.update_many({"slot": {"$exists": True}}, {"$unset": {"slot": ""}})
