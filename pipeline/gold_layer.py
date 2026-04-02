@@ -138,7 +138,8 @@ class GoldLayer:
             "dwell_bits", 
             F.unix_timestamp(F.col("departure_time")) - F.unix_timestamp(F.col("_ingestion_time").cast("timestamp"))
         ).withColumn(
-            "dwell_days", F.round(F.col("dwell_bits") / 86400, 1)
+            "dwell_days", 
+            F.round(F.greatest(F.lit(0.0), F.col("dwell_bits") / 86400).cast("double"), 1)
         )
 
         dwell_stats_rows = (

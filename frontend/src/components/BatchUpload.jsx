@@ -122,7 +122,7 @@ export default function BatchUpload({ onUploadSuccess }) {
               clearInterval(pollInterval)
               setResult(job.result)
               setLoading(false)
-              if (onUploadSuccess) onUploadSuccess()
+              if (onUploadSuccess) onUploadSuccess(job.result)
             } else if (job.status === 'error') {
               clearInterval(pollInterval)
               setError(job.message || "Erreur lors du traitement ETL.")
@@ -139,7 +139,7 @@ export default function BatchUpload({ onUploadSuccess }) {
         // Fallback just in case
         setResult(response.data)
         setLoading(false)
-        if (onUploadSuccess) onUploadSuccess()
+        if (onUploadSuccess) onUploadSuccess(response.data)
       }
     } catch (err) {
       setLoading(false)
@@ -353,6 +353,39 @@ export default function BatchUpload({ onUploadSuccess }) {
                     <span>Écart: <strong>{result.gold_kpis.weight_stats.stddev_t}t</strong></span>
                     <span>Min: <strong>{result.gold_kpis.weight_stats.min_t}t</strong></span>
                     <span>Max: <strong>{result.gold_kpis.weight_stats.max_t}t</strong></span>
+                  </div>
+                </>
+              )}
+              {result.gold_kpis.dwell_analytics && (
+                <>
+                  <div style={{ marginTop: '12px', marginBottom: '4px', fontWeight: 700, color: '#d4a017', fontSize: '0.6rem' }}>
+                    Temps de Séjour (Dwell Time)
+                  </div>
+                  {Object.entries(result.gold_kpis.dwell_analytics).map(([type, days]) => (
+                    <div key={type} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span style={{ textTransform: 'uppercase', fontWeight: 700 }}>{type}</span>
+                      <span><strong>{days}</strong> jours en moy.</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {result.gold_kpis.advanced_analytics && (
+                <>
+                  <div style={{ marginTop: '12px', marginBottom: '6px', fontWeight: 700, color: '#d4a017', fontSize: '0.6rem' }}>
+                    Audit du Gerbage (Stacking)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>Efficacité :</span>
+                    <strong style={{ color: result.gold_kpis.advanced_analytics.efficiency_score > 90 ? '#3fb950' : '#d4a017' }}>
+                      {result.gold_kpis.advanced_analytics.efficiency_score}%
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Risques Rehandle :</span>
+                    <strong style={{ color: result.gold_kpis.advanced_analytics.rehandle_risk_count > 0 ? '#f85149' : '#3fb950' }}>
+                      {result.gold_kpis.advanced_analytics.rehandle_risk_count}
+                    </strong>
                   </div>
                 </>
               )}

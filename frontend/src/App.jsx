@@ -21,6 +21,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContainer, setSelectedContainer] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [goldKpis, setGoldKpis] = useState(null)
+  const [silverReport, setSilverReport] = useState(null)
   const intervalRef = useRef(null)
 
   const fetchYardData = useCallback(async () => {
@@ -64,7 +66,11 @@ export default function App() {
     await fetchYardData()
   }
 
-  const handleUploadSuccess = async () => {
+  const handleUploadSuccess = async (etlResult) => {
+    if (etlResult) {
+      if (etlResult.gold_kpis) setGoldKpis(etlResult.gold_kpis)
+      if (etlResult.silver_report) setSilverReport(etlResult.silver_report)
+    }
     await fetchYardData()
     setActiveTab('Vue Globale 3D')
   }
@@ -153,7 +159,7 @@ export default function App() {
           )}
 
           {!loading && yardData && activeTab === 'Heatmap & Analytique' && (
-            <AnalyticsView yardData={yardData} />
+            <AnalyticsView yardData={yardData} goldKpis={goldKpis} silverReport={silverReport} />
           )}
 
           {!loading && yardData && activeTab === 'Tableau des Conteneurs' && (
