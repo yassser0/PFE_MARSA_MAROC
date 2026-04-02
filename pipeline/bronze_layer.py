@@ -31,6 +31,7 @@ RAW_SCHEMA = StructType([
     StructField("weight",         StringType(), nullable=True),
     StructField("departure_time", StringType(), nullable=True),
     StructField("type",           StringType(), nullable=True),
+    StructField("slot",           StringType(), nullable=True),
 ])
 
 
@@ -98,7 +99,7 @@ class BronzeLayer:
         storage_label = f"HDFS : {output_path}" if self.storage_mode == "hdfs" else f"LOCAL : {output_path}"
         print(f"  [BRONZE] {total_rows} lignes ingérees -> {storage_label}")
 
-        return df_raw, {
+        return df_with_meta, {
             "layer":               "BRONZE",
             "status":              "SUCCESS",
             "storage_mode":        self.storage_mode,

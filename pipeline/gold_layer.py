@@ -112,12 +112,12 @@ class GoldLayer:
 
         # KPI 4 : Fenetre temporelle
         tw = df_clean.agg(
-            F.min("departure_time_iso").alias("earliest"),
-            F.max("departure_time_iso").alias("latest"),
+            F.min("departure_time").alias("earliest"),
+            F.max("departure_time").alias("latest"),
         ).collect()[0]
         time_window = {
-            "earliest_departure": str(tw["earliest"]) if tw["earliest"] else None,
-            "latest_departure":   str(tw["latest"])   if tw["latest"]   else None,
+            "earliest_departure": str(tw["earliest"].isoformat()) if tw["earliest"] else None,
+            "latest_departure":   str(tw["latest"].isoformat())   if tw["latest"]   else None,
         }
 
         # KPI 5 : Qualite pipeline
@@ -131,6 +131,74 @@ class GoldLayer:
             ),
             "quality_score_pct": silver_report.get("quality_score", 0.0),
         }
+
+        # ── KPI 6 : Analyse du Dwell Time (Temps de séjour) ─────────────────────
+        # Dwell Time = departure_time - _ingestion_time (exprimé en jours)
+        df_dwell = df_clean.withColumn(
+            "dwell_bits", 
+            F.unix_timestamp(F.col("departure_time")) - F.unix_timestamp(F.col("_ingestion_time").cast("timestamp"))
+        ).withColumn(
+            "dwell_days", F.round(F.col("dwell_bits") / 86400, 1)
+        )
+
+        dwell_stats_rows = (
+            df_dwell.groupBy("type")
+            .agg(F.round(F.avg("dwell_days"), 1).alias("avg_dwell"))
+            .collect()
+        )
+        dwell_analytics = {
+            row["type"]: float(row["avg_dwell"]) if row["avg_dwell"] else 0.0
+            for row in dwell_stats_rows
+        }
+
+        # ── KPI 7 : Efficacité de Gerbage (Stacking Efficiency) ────────────────
+        # Nécessite l'analyse des colonnes 'slot' (ex: A-001-A-01)
+        advanced_analytics = {"rehandle_risk_count": 0, "efficiency_score": 100.0}
+        
+        if "slot" in df_clean.columns:
+            from pyspark.sql.window import Window
+            
+            # Parse du slot : Bloc-Travée-Rangée-Niveau (ex: A-001-A-01)
+            # On simplifie pour l'analyse Big Data : (Bloc, Bay, Row) = Pile
+            df_stack = df_clean.withColumn("slot_parts", F.split(F.col("slot"), "-"))
+            if df_stack.filter(F.size(F.col("slot_parts")) >= 4).count() > 0:
+                df_stack = df_stack.withColumn("b_id", F.col("slot_parts").getItem(0)) \
+                                   .withColumn("bay",  F.col("slot_parts").getItem(1)) \
+                                   .withColumn("row",  F.col("slot_parts").getItem(2)) \
+                                   .withColumn("tier", F.col("slot_parts").getItem(3).cast("int"))
+                
+                # Fenêtre par pile, triée par niveau (sol vers haut)
+                win_stack = Window.partitionBy("b_id", "bay", "row").orderBy("tier")
+                
+                # Un risque de rehandle existe si le conteneur du dessous part APRÈS celui du dessus
+                # rehandle if departure_time(tier N) < departure_time(tier N+1)
+                df_risk = df_stack.withColumn(
+                    "next_departure", 
+                    F.lead("departure_time").over(win_stack)
+                ).withColumn(
+                    "is_rehandle_risk",
+                    F.when(
+                        (F.col("next_departure").isNotNull()) & 
+                        (F.col("departure_time") > F.col("next_departure")), # Celui du dessous part après (OK)
+                        0
+                    ).when(
+                        (F.col("next_departure").isNotNull()) & 
+                        (F.col("departure_time") < F.col("next_departure")), # Celui du dessous part avant (BLOQUÉ)
+                        1
+                    ).otherwise(0)
+                )
+                
+                rehandle_count = df_risk.filter(F.col("is_rehandle_risk") == 1).count()
+                efficiency = round(max(0, 100 - (rehandle_count / total * 100)), 1)
+                
+                advanced_analytics = {
+                    "rehandle_risk_count": rehandle_count,
+                    "efficiency_score":    efficiency,
+                    "details_per_block":   {
+                        row["b_id"]: row["count"] 
+                        for row in df_risk.filter(F.col("is_rehandle_risk") == 1).groupBy("b_id").count().collect()
+                    }
+                }
 
         # ── Persistance Delta Lake (Data Lakehouse)
         parquet_path = self._get_output_path(timestamp_str)
@@ -159,6 +227,8 @@ class GoldLayer:
             "weight_stats":      weight_stats,
             "time_window":       time_window,
             "pipeline_quality":  pipeline_quality,
+            "dwell_analytics":   dwell_analytics,
+            "advanced_analytics": advanced_analytics,
         }
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(kpis_data, f, ensure_ascii=False, indent=2)

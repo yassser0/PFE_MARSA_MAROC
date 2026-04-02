@@ -70,6 +70,8 @@ class SilverLayerSpark:
             F.col("size").cast(IntegerType()).alias("size"),
             F.col("departure_time"),
             F.lower(F.trim(F.col("type"))).alias("type"),
+            F.col("_ingestion_time"),
+            F.col("slot"),
         )
 
         # Etape 2 : Parse departure_time (multi-format)
