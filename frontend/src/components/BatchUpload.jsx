@@ -271,29 +271,22 @@ export default function BatchUpload({ onUploadSuccess }) {
           </div>
 
           {/* KPIs placement */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
             <div style={statItemStyle}>
               <span style={statLabelStyle}>BRONZE</span>
-              <span style={{ ...statValueStyle, color: '#cd7f32' }}>{result.bronze_report?.total_rows_ingested ?? '-'}</span>
+              <span style={{ ...statValueStyle, color: '#cd7f32' }}>{result.bronze_report?.total_rows_ingested ?? '-'} lignes</span>
             </div>
             <div style={statItemStyle}>
               <span style={statLabelStyle}>SILVER</span>
-              <span style={{ ...statValueStyle, color: '#a8b2c0' }}>{result.silver_report?.total_cleaned ?? '-'}</span>
+              <span style={{ ...statValueStyle, color: '#a8b2c0' }}>{result.silver_report?.total_cleaned ?? '-'} valides</span>
             </div>
             <div style={statItemStyle}>
               <span style={statLabelStyle}>PLACÉS</span>
               <span style={{ ...statValueStyle, color: '#3fb950' }}>{result.containers_placed}</span>
             </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
             <div style={statItemStyle}>
               <span style={statLabelStyle}>OCCUPANCY</span>
               <span style={{ ...statValueStyle, color: 'var(--accent-cyan)' }}>{result.yard_occupancy}</span>
-            </div>
-            <div style={statItemStyle}>
-              <span style={statLabelStyle}>ZONE TAMPON</span>
-              <span style={{ ...statValueStyle, color: '#d29922' }}>{result.waitlist_count || 0}</span>
             </div>
           </div>
 

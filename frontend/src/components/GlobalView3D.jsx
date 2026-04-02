@@ -1,11 +1,11 @@
 import React, { useMemo, useState, Suspense, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { 
-  OrbitControls, 
-  PerspectiveCamera, 
-  Environment, 
-  ContactShadows, 
-  Sky, 
+import {
+  OrbitControls,
+  PerspectiveCamera,
+  Environment,
+  ContactShadows,
+  Sky,
   Text,
   Grid,
   useGLTF,
@@ -67,27 +67,27 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
 
   return (
     <group position={position}>
-      <mesh 
-        castShadow 
-        receiveShadow 
-        onPointerOver={(e) => { 
-          e.stopPropagation(); 
+      <mesh
+        castShadow
+        receiveShadow
+        onPointerOver={(e) => {
+          e.stopPropagation();
           setHover(true);
-          onHover(data); 
-          document.body.style.cursor = 'pointer' 
-        }} 
-        onPointerOut={() => { 
+          onHover(data);
+          document.body.style.cursor = 'pointer'
+        }}
+        onPointerOut={() => {
           setHover(false);
-          onHover(null); 
-          document.body.style.cursor = 'auto' 
-        }} 
+          onHover(null);
+          document.body.style.cursor = 'auto'
+        }}
         onClick={(e) => { e.stopPropagation(); onSelect(data) }}
         scale={hovered ? 1.03 : pulse ? 1.15 : 1}
       >
         <boxGeometry args={[2.5, 2.5, 6.1]} />
-        <meshStandardMaterial 
-          color={highlight ? '#00fdff' : color} 
-          metalness={0.6} 
+        <meshStandardMaterial
+          color={highlight ? '#00fdff' : color}
+          metalness={0.6}
           roughness={0.4}
           transparent={opacity < 1}
           opacity={opacity}
@@ -105,7 +105,7 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
  */
 function RTGModel({ position }) {
   // const { scene } = useGLTF('/models/rtg_crane.glb', true)
-  
+
   return (
     <group position={position}>
       {/* Procedural fallback for now */}
@@ -130,21 +130,21 @@ function CameraFocus({ targetPos }) {
     if (targetPos && JSON.stringify(targetPos) !== JSON.stringify(lastTarget.current)) {
       setActive(true)
       lastTarget.current = targetPos
-      
+
       // Auto-release after 2 seconds to allow user control
       const timer = setTimeout(() => setActive(false), 2000)
       return () => clearTimeout(timer)
     }
   }, [targetPos])
-  
+
   useFrame((state, delta) => {
     if (!active || !targetPos || !controls) return
 
     const targetVec = new THREE.Vector3(...targetPos)
-    
+
     // Smoothly interpolate target
     controls.target.lerp(targetVec, 0.1)
-    
+
     // Smoothly interpolate camera position
     const desiredCamPos = new THREE.Vector3(
       targetVec.x + 35,
@@ -152,7 +152,7 @@ function CameraFocus({ targetPos }) {
       targetVec.z + 35
     )
     camera.position.lerp(desiredCamPos, 0.05)
-    
+
     controls.update()
 
     // Stop if very close
@@ -173,18 +173,18 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
       <Sky inclination={0.1} distance={450000} />
       <Environment preset="night" />
       <ambientLight intensity={0.5} />
-      <directionalLight 
-        position={[20, 50, 20]} 
-        intensity={1.2} 
-        castShadow 
-        shadow-mapSize={[2048, 2048]} 
+      <directionalLight
+        position={[20, 50, 20]}
+        intensity={1.2}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
       />
 
       {/* Ground calculated dynamically based on block layout */}
       {yardData?.blocks?.length > 0 && (() => {
         // Find bounds of all blocks
         let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-        
+
         yardData.blocks.forEach(b => {
           // Block origin is at its center (usually), but let's assume its extent
           const halfW = b.width / 2;
@@ -243,24 +243,24 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
 
           {block.stacks.map((stack) => {
             // Force visibility if stack contains the searched container
-            const hasSearchMatch = searchQuery && stack.slots.some(s => 
+            const hasSearchMatch = searchQuery && stack.slots.some(s =>
               !s.is_free && (s.container_id === searchQuery || s.container_details?.location === searchQuery)
             );
             const isTargetRow = visibleRow === 0 || stack.row === visibleRow || hasSearchMatch;
-            
-            if (!isTargetRow) return null; 
+
+            if (!isTargetRow) return null;
 
             return (
               <group key={`${block.block_id}-${stack.row}-${stack.bay}`} position={[
-                (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8, 
-                0, 
-                (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
+                (stack.row - 1 - yardData.n_rows / 2 + 0.5) * 2.8,
+                0,
+                (stack.bay - 1 - yardData.n_bays / 2 + 0.5) * 6.4
               ]}>
                 {stack.slots.map((slot) => {
                   if (slot.is_free) return null;
                   const isMatch = searchQuery && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)
                   return (
-                    <ContainerModel 
+                    <ContainerModel
                       key={slot.container_id}
                       position={[0, (slot.tier - 1) * 2.6 + 1.3, 0]}
                       color={getStatusColor(slot)}
@@ -278,71 +278,7 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
         </group>
       ))}
 
-      {/* Zone Tampon (Buffer Zone) */}
-      {yardData?.buffer_zone?.length > 0 && (() => {
-        // Find minX to place buffer zone to the left of the main yard
-        let minX = Infinity;
-        yardData.blocks.forEach(b => {
-          const halfW = b.width / 2;
-          minX = Math.min(minX, b.x - halfW);
-        });
 
-        const bufferZoneX = minX - 40; 
-        const bufferZoneZ = 0; 
-        
-        return (
-          <group position={[bufferZoneX, 0, bufferZoneZ]}>
-            {/* Base platform */}
-            <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-               <planeGeometry args={[25, 80]} />
-               <meshStandardMaterial color="#d29922" transparent opacity={0.15} />
-            </mesh>
-            
-            {/* Label */}
-            <Text
-              position={[0, 0.1, 45]}
-              rotation={[-Math.PI / 2, 0, 0]}
-              fontSize={5}
-              color="#d29922"
-              anchorX="center"
-              anchorY="middle"
-            >
-              ZONE TAMPON EXCEPTION
-            </Text>
-
-            {/* Render Containers array */}
-            {yardData.buffer_zone.map((c, index) => {
-              // Layout them in a grid
-              const cols = 5;
-              const row = Math.floor(index / cols);
-              const col = index % cols;
-              // Add some offset
-              const xPos = (col - cols/2 + 0.5) * 3;
-              const zPos = (row - 5) * 7; 
-              
-              const isMatch = searchQuery && (c.id === searchQuery || c.location === searchQuery);
-
-              // Pseudo-slot for styling
-              const dummySlot = {
-                 container_details: { type: c.type, weight: c.weight }
-              };
-              
-              return (
-                 <ContainerModel 
-                   key={c.id}
-                   position={[xPos, 1.3, zPos]}
-                   color={getStatusColor(dummySlot)}
-                   data={{ id: c.id, ...c }}
-                   onSelect={onSelectContainer}
-                   onHover={onHover}
-                   isMatch={isMatch}
-                   opacity={1.0}
-                 />
-              )
-            })}
-          </group>
-        )
-      })()}
       <ContactShadows opacity={0.6} scale={500} blur={2} far={10} color="#000000" />
     </>
   )
@@ -373,7 +309,7 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
       lastSearchQuery.current = searchQuery || '';
       return
     }
-    
+
     lastSearchQuery.current = searchQuery;
     if (!yardData) return
 
@@ -388,7 +324,7 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
       }
     }
   }, [searchQuery, yardData])
-  
+
   const stats = useMemo(() => {
     if (!yardData) return { occupancy: 0, count: 0, alerts: 0 }
     const totalSlots = yardData.n_blocks * yardData.n_bays * yardData.n_rows * yardData.max_height
@@ -408,15 +344,15 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
   // Find target position for Fly-To
   const targetContainerPos = useMemo(() => {
     if (!searchQuery || !yardData) return null
-    
+
     for (const block of yardData.blocks) {
       for (const stack of block.stacks) {
         for (const slot of stack.slots) {
           if (!slot.is_free && (slot.container_id === searchQuery || slot.container_details?.location === searchQuery)) {
             return [
-              block.x + (stack.row - 1 - yardData.n_rows/2 + 0.5) * 2.8,
+              block.x + (stack.row - 1 - yardData.n_rows / 2 + 0.5) * 2.8,
               (slot.tier - 1) * 2.6 + 1.3,
-              block.y + (stack.bay - 1 - yardData.n_bays/2 + 0.5) * 6.4
+              block.y + (stack.bay - 1 - yardData.n_bays / 2 + 0.5) * 6.4
             ]
           }
         }
@@ -429,20 +365,20 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080a0c', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      
+
       {/* Tooltip HUD Layer - now floating */}
-      <TooltipHUD 
-        data={hoveredContainer} 
+      <TooltipHUD
+        data={hoveredContainer}
         mousePos={mousePos}
       />
 
       {/* Unified Horizontal Header Bar */}
       <div style={{ padding: '10px 15px' }}>
-        <div className="detail-header-row glass" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          padding: '10px 20px', 
+        <div className="detail-header-row glass" style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 20px',
           borderRadius: '12px',
           gap: '15px',
           flexWrap: 'wrap'
@@ -456,11 +392,11 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
             {/* Row Visibility Tool */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '15px', borderLeft: '1px solid var(--border)' }}>
               <label style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Rangées</label>
-              <input 
-                type="range" 
-                min="0" 
-                max={yardData.n_rows} 
-                value={visibleRow} 
+              <input
+                type="range"
+                min="0"
+                max={yardData.n_rows}
+                value={visibleRow}
                 onChange={(e) => setVisibleRow(parseInt(e.target.value))}
                 style={{ width: '100px', cursor: 'pointer' }}
               />
@@ -482,10 +418,10 @@ export default function GlobalView3D({ yardData, searchQuery, onInspectBlock, on
 
       <Canvas shadows camera={{ position: [80, 60, 100], fov: 40 }}>
         <Suspense fallback={null}>
-          <SceneContent 
-            yardData={yardData} 
-            searchQuery={searchQuery} 
-            onSelectContainer={onSelectContainer} 
+          <SceneContent
+            yardData={yardData}
+            searchQuery={searchQuery}
+            onSelectContainer={onSelectContainer}
             visibleRow={visibleRow}
             onHover={setHoveredContainer}
           />

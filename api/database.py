@@ -18,6 +18,12 @@ class MongoDB:
         try:
             cls.client = AsyncIOMotorClient(mongo_uri)
             cls.db = cls.client.marsa_maroc
+            
+            # Création des index d'optimisation
+            import pymongo
+            await cls.db.containers.create_index([("id", pymongo.ASCENDING)], unique=True)
+            await cls.db.containers.create_index([("slot", pymongo.ASCENDING)])
+            
             # Test de connexion
             await cls.client.admin.command('ping')
             print("✅ Connecté à MongoDB avec succès.")

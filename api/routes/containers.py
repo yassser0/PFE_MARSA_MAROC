@@ -262,15 +262,14 @@ async def process_etl_background(tmp_dir: str, tmp_csv_path: str, app: FastAPI):
         sorted_items = sorted(cleaned_records, key=lambda x: x["departure_time"], reverse=True)
 
         placed_count = 0
-        duplicate_count = 0
-        waitlist_count = 0
+        failed_count = 0
         db_containers = []
 
         for item in sorted_items:
             cntr_id = item["id"]
 
             if cntr_id in container_registry:
-                duplicate_count += 1
+                failed_count += 1
                 continue
 
             dt_raw = item["departure_time"]
@@ -286,8 +285,7 @@ async def process_etl_background(tmp_dir: str, tmp_csv_path: str, app: FastAPI):
 
             best_result = find_best_slot(container, yard)
             if best_result is None:
-                waitlist_count += 1
-                app.state.buffer_zone.append(container)
+                failed_count += 1
                 continue
 
             best_slot, _ = best_result
@@ -305,8 +303,7 @@ async def process_etl_background(tmp_dir: str, tmp_csv_path: str, app: FastAPI):
                     "slot":           best_slot.localization,
                 })
             else:
-                waitlist_count += 1
-                app.state.buffer_zone.append(container)
+                failed_count += 1
 
         if db_containers:
             import asyncio
@@ -324,11 +321,10 @@ async def process_etl_background(tmp_dir: str, tmp_csv_path: str, app: FastAPI):
             "gold_kpis": etl_result.get("gold_kpis"),
             "total_received": etl_result.get("bronze_report", {}).get("total_rows_ingested", 0),
             "containers_placed": placed_count,
-            "failed_placements": duplicate_count,
-            "waitlist_count": waitlist_count,
+            "failed_placements": failed_count,
             "yard_occupancy": f"{yard.occupancy_rate:.1%}",
             "processing_time_ms": duration_ms,
-            "message": f"✅ Pipeline ETL réussie — {placed_count}/{len(cleaned_records)} placés, {waitlist_count} en zone tampon.",
+            "message": f"✅ Pipeline ETL réussie — {placed_count}/{len(cleaned_records)} conteneurs placés en {duration_ms:.0f}ms.",
         }
 
     except Exception as e:

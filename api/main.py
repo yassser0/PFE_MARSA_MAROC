@@ -38,7 +38,6 @@ async def lifespan(app: FastAPI):
     app.state.yard = generate_yard(blocks=4, bays=24, rows=12, max_height=5)
     app.state.container_registry = {}
     app.state.last_reset_time = datetime.now()
-    app.state.buffer_zone = []
     
     # État global du job ETL asynchrone pour éviter les conflits
     app.state.etl_job = {
