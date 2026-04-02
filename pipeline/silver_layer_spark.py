@@ -31,6 +31,8 @@ from pyspark.sql.window import Window
 HDFS_NAMENODE = os.getenv("HDFS_NAMENODE", "hdfs://localhost:9000")
 HDFS_SILVER   = f"{HDFS_NAMENODE}/marsa_maroc/silver"
 LOCAL_SILVER  = os.path.join(os.path.dirname(__file__), "..", "data", "silver")
+HDFS_ANOMALIES = f"{HDFS_NAMENODE}/marsa_maroc/anomalies"
+LOCAL_ANOMALIES = os.path.join(os.path.dirname(__file__), "..", "data", "anomalies")
 
 ALLOWED_TYPES = ["import", "export", "transshipment"]
 
@@ -51,6 +53,13 @@ class SilverLayerSpark:
         base = os.path.abspath(LOCAL_SILVER)
         os.makedirs(base, exist_ok=True)
         return f"file:///{base.replace(os.sep, '/')}/batch_{timestamp_str}"
+
+    def _get_anomalies_path(self) -> str:
+        if self.storage_mode == "hdfs":
+            return HDFS_ANOMALIES
+        base = os.path.abspath(LOCAL_ANOMALIES)
+        os.makedirs(base, exist_ok=True)
+        return f"file:///{base.replace(os.sep, '/')}"
 
     def process(self, df_raw: DataFrame) -> Tuple[DataFrame, Dict[str, Any]]:
         """
@@ -87,27 +96,37 @@ class SilverLayerSpark:
             )
         )
 
-        # Etape 3 : Suppression des nulles critiques
+        # Etape 3 : Suppression des nulles critiques et capture des anomalies
         df_not_null = df.dropna(subset=["id", "weight", "size", "departure_time"])
         after_null_drop  = df_not_null.count()
         invalid_nulls    = total_raw - after_null_drop
 
-        # Etape 4 : Deduplication par ID
+        c_nulls = F.col("id").isNull() | F.col("weight").isNull() | F.col("size").isNull() | F.col("departure_time").isNull()
+        df_anomalies_nulls = df.filter(c_nulls).withColumn("anomaly_reason", F.lit("NULL_CRITICAL_COLUMNS"))
+
+        # Etape 4 : Deduplication par ID et capture des anomalies
         window_spec = Window.partitionBy("id").orderBy(F.monotonically_increasing_id())
-        df_deduped = (
-            df_not_null
-            .withColumn("_row_num", F.row_number().over(window_spec))
-            .filter(F.col("_row_num") == 1)
-            .drop("_row_num")
-        )
+        df_with_rank = df_not_null.withColumn("_row_num", F.row_number().over(window_spec))
+
+        df_deduped = df_with_rank.filter(F.col("_row_num") == 1).drop("_row_num")
         duplicates_removed = after_null_drop - df_deduped.count()
 
-        # Etape 5 : Validation domaines metier
-        df_valid = df_deduped.filter(
+        df_anomalies_dupes = (
+            df_with_rank
+            .filter(F.col("_row_num") > 1)
+            .drop("_row_num")
+            .withColumn("anomaly_reason", F.lit("DUPLICATE_ID"))
+        )
+
+        # Etape 5 : Validation domaines metier et capture des anomalies
+        valid_cond = (
             (F.col("weight") >= 1.0) & (F.col("weight") <= 50.0) &
             F.col("size").isin(20, 40) &
             F.col("type").isin(ALLOWED_TYPES)
         )
+        df_valid = df_deduped.filter(valid_cond)
+        
+        df_anomalies_domain = df_deduped.filter(~valid_cond).withColumn("anomaly_reason", F.lit("DOMAIN_VIOLATION"))
 
         # Normalisation type (valeur par defaut = 'import')
         df_clean = df_valid.withColumn(
@@ -145,6 +164,27 @@ class SilverLayerSpark:
         storage_label = f"HDFS Delta : {output_path}" if self.storage_mode == "hdfs" else f"LOCAL Delta : {output_path}"
         print(f"  [SILVER] {total_clean}/{total_raw} lignes valides (Data Lakehouse Delta) -> {storage_label}")
 
+        # Etape 8 : Sauvegarde Historique des Anomalies (Data Governance)
+        df_all_anomalies = df_anomalies_nulls.unionByName(df_anomalies_dupes).unionByName(df_anomalies_domain)
+        total_anomalies  = invalid_nulls + duplicates_removed + invalid_domain
+        anomalies_path   = self._get_anomalies_path()
+
+        if total_anomalies > 0:
+            try:
+                (
+                    df_all_anomalies
+                    .withColumn("ingestion_date", F.to_date(F.col("_ingestion_time")))
+                    .write.format("delta")
+                    .mode("append")
+                    .partitionBy("ingestion_date", "anomaly_reason")
+                    .save(anomalies_path)
+                )
+                print(f"  [QUALITY] Rapport : {total_anomalies} anomalies sauvegardées -> {anomalies_path}")
+            except Exception as e:
+                print(f"  [QUALITY] Erreur sauvegarde anomalies : {e}")
+        else:
+            print(f"  [QUALITY] Rapport : Aucune anomalie détectée (Score {quality_score}%) !")
+
         return df_clean, {
             "layer":                   "SILVER",
             "status":                  "SUCCESS",
@@ -154,9 +194,11 @@ class SilverLayerSpark:
             "invalid_nulls_removed":   invalid_nulls,
             "duplicates_removed":      duplicates_removed,
             "invalid_domain_removed":  invalid_domain,
+            "total_anomalies_saved":   total_anomalies,
             "total_cleaned":           total_clean,
             "quality_score":           quality_score,
             "output_path":             output_path,
+            "anomalies_path":          anomalies_path if total_anomalies > 0 else None,
             "processing_time":         processing_time.isoformat(),
         }
 

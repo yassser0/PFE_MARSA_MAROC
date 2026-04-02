@@ -23,6 +23,8 @@ from pyspark.sql.types import StructType, StructField, StringType
 HDFS_NAMENODE  = os.getenv("HDFS_NAMENODE", "hdfs://localhost:9000")
 HDFS_BRONZE    = f"{HDFS_NAMENODE}/marsa_maroc/bronze"
 LOCAL_BRONZE   = os.path.join(os.path.dirname(__file__), "..", "data", "bronze")
+HDFS_ARCHIVE   = f"{HDFS_NAMENODE}/marsa_maroc/archive"
+LOCAL_ARCHIVE  = os.path.join(os.path.dirname(__file__), "..", "data", "archive")
 
 # Schema brut (tout en string — couche Bronze ne transforme pas)
 RAW_SCHEMA = StructType([
@@ -52,6 +54,14 @@ class BronzeLayer:
         base = os.path.abspath(LOCAL_BRONZE)
         os.makedirs(base, exist_ok=True)
         return f"file:///{base.replace(os.sep, '/')}/batch_{timestamp_str}"
+
+    def _get_archive_path(self) -> str:
+        """Retourne le chemin de la table d'archives globale."""
+        if self.storage_mode == "hdfs":
+            return HDFS_ARCHIVE
+        base = os.path.abspath(LOCAL_ARCHIVE)
+        os.makedirs(base, exist_ok=True)
+        return f"file:///{base.replace(os.sep, '/')}"
 
     def ingest(self, csv_path: str) -> Tuple[DataFrame, Dict[str, Any]]:
         """
@@ -92,12 +102,26 @@ class BronzeLayer:
             .withColumn("_storage_mode",   F.lit(self.storage_mode))
         )
 
-        # 3. Persistance Parquet
+        # 3. Persistance Parquet (Batch Bronze Actuel)
         output_path = self._get_output_path(timestamp_str)
         df_with_meta.write.mode("overwrite").parquet(output_path)
 
         storage_label = f"HDFS : {output_path}" if self.storage_mode == "hdfs" else f"LOCAL : {output_path}"
         print(f"  [BRONZE] {total_rows} lignes ingérees -> {storage_label}")
+
+        # 4. Archivage Historique Immuable (Delta, Append)
+        archive_path = self._get_archive_path()
+        try:
+            (
+                df_with_meta.withColumn("ingestion_date", F.to_date(F.col("_ingestion_time")))
+                .write.format("delta")
+                .mode("append")
+                .partitionBy("ingestion_date")
+                .save(archive_path)
+            )
+            print(f"  [ARCHIVES] {total_rows} lignes sauvegardées historiquement -> {archive_path}")
+        except Exception as e:
+            print(f"  [ARCHIVES] Erreur d'archivage : {e}")
 
         return df_with_meta, {
             "layer":               "BRONZE",
@@ -106,6 +130,7 @@ class BronzeLayer:
             "source_file":         os.path.basename(csv_path),
             "total_rows_ingested": total_rows,
             "output_path":         output_path,
+            "archive_path":        archive_path,
             "ingestion_time":      ingestion_time.isoformat(),
             "columns_detected":    df_raw.columns,
         }
