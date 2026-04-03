@@ -212,5 +212,6 @@ class SilverLayerSpark:
                 "weight":         float(row["weight"]),
                 "departure_time": row["departure_time_iso"],
                 "type":           row["type"],
+                "slot":           row["slot"] if "slot" in row and row["slot"] else None,
             })
         return records

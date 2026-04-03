@@ -34,9 +34,13 @@ from services.scoring import calculate_score
 OPTIMALITY_THRESHOLD: float = 1.0
 
 
-# ---------------------------------------------------------------------------
-# Filtrage des slots valides
-# ---------------------------------------------------------------------------
+# --- Configuration de la Politique de Taille ---
+# Blocs A, B : 20ft uniquement
+# Blocs C, D : 40ft uniquement
+SIZE_POLICY = {
+    20: ['A', 'B'],
+    40: ['C', 'D']
+}
 
 def get_valid_slots(
     container: Container,
@@ -47,30 +51,16 @@ def get_valid_slots(
 ) -> List[Slot]:
     """
     Retourne la liste des slots physiquement valides pour ce conteneur.
-
-    Parameters
-    ----------
-    strict_edd : bool
-        Si True (défaut), applique la règle EDD stricte : refuse tout slot
-        où le conteneur entrant partirait APRÈS un conteneur déjà en dessous.
-    strict_weight : bool
-        Si True (défaut), refuse tout slot où le conteneur entrant est 
-        plus lourd que le conteneur directement en dessous (stabilité).
+    Enforce la séparation stricte des 20ft et 40ft par blocs.
     """
     valid_slots: List[Slot] = []
 
-    # --- Dedicated Zones Logic ---
-    # Example policy: Blocks A and B are for 20ft only.
-    #                 Blocks C and D are for 40ft only.
-    if allowed_blocks is None:
-        allowed_blocks = []
-        if container.size == 20:
-            allowed_blocks = ['A', 'B']  # Adjust based on your actual block IDs if they differ
-        elif container.size == 40:
-            allowed_blocks = ['C', 'D']
+    # Si allowed_blocks n'est pas fourni, on utilise la politique par défaut
+    if not allowed_blocks:
+        allowed_blocks = SIZE_POLICY.get(container.size, [])
 
     for block_id, block in yard.blocks.items():
-        # Only check blocks dedicated to this container size
+        # Filtre de zone (SÉPARATION 20ft/40ft)
         if allowed_blocks and block_id not in allowed_blocks:
             continue
             

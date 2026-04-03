@@ -1,0 +1,60 @@
+{
+  "computed_at": "2026-04-03T09:50:41.166721",
+  "total_containers": 1000,
+  "storage_mode": "hdfs",
+  "type_distribution": {
+    "import": {
+      "count": 347,
+      "percentage": 34.7,
+      "avg_weight_t": 17.69
+    },
+    "export": {
+      "count": 330,
+      "percentage": 33.0,
+      "avg_weight_t": 17.89
+    },
+    "transshipment": {
+      "count": 323,
+      "percentage": 32.3,
+      "avg_weight_t": 17.72
+    }
+  },
+  "size_distribution": {
+    "20ft": {
+      "count": 485,
+      "percentage": 48.5,
+      "avg_weight_t": 17.93
+    },
+    "40ft": {
+      "count": 515,
+      "percentage": 51.5,
+      "avg_weight_t": 17.61
+    }
+  },
+  "weight_stats": {
+    "avg_t": 17.77,
+    "min_t": 5.0,
+    "max_t": 30.0,
+    "stddev_t": 7.32
+  },
+  "time_window": {
+    "earliest_departure": "2026-04-11T00:00:00",
+    "latest_departure": "2026-05-10T22:00:00"
+  },
+  "pipeline_quality": {
+    "total_raw_ingested": 1000,
+    "total_after_silver": 1000,
+    "duplicates_removed": 0,
+    "invalid_removed": 0,
+    "quality_score_pct": 100.0
+  },
+  "dwell_analytics": {
+    "transshipment": 22.0,
+    "import": 22.2,
+    "export": 23.7
+  },
+  "advanced_analytics": {
+    "rehandle_risk_count": 0,
+    "efficiency_score": 100.0
+  }
+}
