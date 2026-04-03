@@ -144,25 +144,33 @@ def generate_containers(n: int) -> List[Container]:
 # ---------------------------------------------------------------------------
 
 def generate_yard(
-    blocks: int = 4,
-    bays: int = 24, # Échelle augmentée
-    rows: int = 6,  # Format standard pour RTG
+    blocks: int = 4,  # Nombre de blocs standards (A, B, C, D...)
+    bays: int = 24,
+    rows: int = 6,
     max_height: int = 5,
 ) -> Yard:
     """
-    Génère un yard réaliste imitant le TC3 de Casablanca.
-    Organisation optimisée pour les grues RTG et la circulation des camions.
+    Génère un yard avec les blocs demandés par l'utilisateur (A...)
+    ET ajoute systématiquement des blocs de secours (S1, S2).
     """
     if blocks <= 0 or rows <= 0 or max_height <= 0:
         raise ValueError("Les dimensions du yard doivent être toutes positives.")
-    if blocks > 26:
-        raise ValueError("Maximum 26 blocs supportés (A–Z).")
+
+    # Blocs standards (A, B, C, D...)
+    block_ids = [chr(ord('A') + i) for i in range(blocks)]
+    
+    # AJOUT AUTOMATIQUE DES BLOCS DE SECOURS
+    if "S1" not in block_ids: block_ids.append("S1")
+    if "S2" not in block_ids: block_ids.append("S2")
+
+    total_blocks = len(block_ids)
 
     yard = Yard(
-        n_blocks=blocks,
+        n_blocks=total_blocks,
         n_bays=bays,
         n_rows=rows,
         max_height=max_height,
+        block_ids=block_ids
     )
     
     # Configuration spatiale TC3 Digital Twin
@@ -184,17 +192,26 @@ def generate_yard(
     base_y = -total_grid_length / 2.0 + block_length / 2.0
 
     for i, (block_id, block) in enumerate(yard.blocks.items()):
-        # Layout exact demandé : A(HD), B(BD), C(HG), D(BG)
+        # Layout intelligent : 
+        # A-D selon leurs positions TC3 habituelles
+        # S1, S2 toujours en extension (ligne 3)
+        # Autres blocs (E, F...) remplissent par défaut les lignes suivantes
+        
         if block_id == 'A':
-            col, row_in_col = 1, 0  # Droite, Haut
+            col, row_in_col = 1, 0
         elif block_id == 'B':
-            col, row_in_col = 1, 1  # Droite, Bas
+            col, row_in_col = 1, 1
         elif block_id == 'C':
-            col, row_in_col = 0, 0  # Gauche, Haut
+            col, row_in_col = 0, 0
         elif block_id == 'D':
-            col, row_in_col = 0, 1  # Gauche, Bas
+            col, row_in_col = 0, 1
+        elif block_id == 'S1':
+            col, row_in_col = 0, 2
+        elif block_id == 'S2':
+            col, row_in_col = 1, 2
         else:
-            col, row_in_col = i % 2, i // 2
+            # Pour les autres blocs (E, F...) on évite les lignes 0, 1, 2 si possible
+            col, row_in_col = i % 2, (i // 2) + 1 # Décalage pour éviter A-D
         
         # Positionnement centré
         block.x = base_x + col * (block_width + truck_main_road)

@@ -126,18 +126,19 @@ def _compute_distance_score(slot: Slot, yard: Yard) -> float:
     -------
     float : score de distance normalisé entre 0 et 1
     """
-    # Index du bloc (A=0, B=1, C=2, ...)
-    block_index = ord(slot.block_id) - ord('A')
+    # Index du bloc (Robuste aux noms S1, S2...)
+    block_ids = list(yard.blocks.keys())
+    try:
+        block_index = block_ids.index(slot.block_id)
+    except ValueError:
+        block_index = 0
 
     # Distance normalisée : combinaison bloc + bay + rangée
-    max_block_idx = yard.n_blocks - 1
-    max_bay_idx = yard.n_bays - 1
-    max_row_idx = yard.n_rows - 1
+    max_block_idx = max(1, len(block_ids) - 1)
+    max_bay_idx = max(1, yard.n_bays - 1)
+    max_row_idx = max(1, yard.n_rows - 1)
 
-    if max_block_idx == 0 and max_bay_idx == 0 and max_row_idx == 0:
-        return 0.0
-
-    block_dist = block_index / max_block_idx if max_block_idx > 0 else 0.0
+    block_dist = block_index / max_block_idx
     bay_dist = (slot.bay - 1) / max_bay_idx if max_bay_idx > 0 else 0.0
     row_dist = (slot.row - 1) / max_row_idx if max_row_idx > 0 else 0.0
 

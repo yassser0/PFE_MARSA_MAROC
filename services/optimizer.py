@@ -35,11 +35,13 @@ OPTIMALITY_THRESHOLD: float = 1.0
 
 
 # --- Configuration de la Politique de Taille ---
-# Blocs A, B : 20ft uniquement
-# Blocs C, D : 40ft uniquement
+# Blocs A, B : 20ft (Primaire) 
+# Blocs C, D : 40ft (Primaire)
+# Blocs S1 : 20ft (Secours)
+# Blocs S2 : 40ft (Secours)
 SIZE_POLICY = {
-    20: ['A', 'B'],
-    40: ['C', 'D']
+    20: {'primary': ['A', 'B'], 'backup': ['S1']},
+    40: {'primary': ['C', 'D'], 'backup': ['S2']}
 }
 
 def get_valid_slots(
@@ -55,9 +57,10 @@ def get_valid_slots(
     """
     valid_slots: List[Slot] = []
 
-    # Si allowed_blocks n'est pas fourni, on utilise la politique par défaut
+    # Si allowed_blocks n'est pas fourni, on utilise toute la politique par défaut (primaire + backup)
     if not allowed_blocks:
-        allowed_blocks = SIZE_POLICY.get(container.size, [])
+        policy = SIZE_POLICY.get(container.size, {})
+        allowed_blocks = policy.get('primary', []) + policy.get('backup', [])
 
     for block_id, block in yard.blocks.items():
         # Filtre de zone (SÉPARATION 20ft/40ft)
@@ -191,39 +194,54 @@ def find_best_slot(
     allowed_blocks: Optional[List[str]] = None
 ) -> Optional[Tuple[Slot, float]]:
     """
-    Trouve le slot optimal via une approche Hybride à 2 passes :
-
-    Passe 1 — EDD strict :
-        Ne considère que les slots sans rehandle (conteneur entrant repart
-        avant tous ceux déjà en dessous). Priorité absolue.
-
-    Passe 2 — Dégradé (si aucun slot EDD trouvé) :
-        Active tous les slots physiquement disponibles et laisse le scorer
-        pénaliser les rehandles — évite les faux « yard plein ».
-
-    Dans les deux cas : Filtrage Top-K (Greedy) + Recuit Simulé (SA).
+    Trouve le slot optimal via une approche Hiérarchique :
+    1. PRIORITÉ — Blocs Dédiés (Primaire) avec EDD/Poids dégradé.
+    2. SECOURS  — Si le Primaire est plein, cherche dans les blocs de Backup (S1/S2).
     """
-    # --- Passe 1 : EDD strict, (Poids négligé selon demande de l'utilisateur) ---
+    policy = SIZE_POLICY.get(container.size, {})
+    primary = policy.get('primary', [])
+    backup = policy.get('backup', [])
+
+    # --- ÉTAPE 1 : Recherche dans les blocs PRIMAIRES (A, B ou C, D) ---
+    result = _find_best_in_group(container, yard, primary, top_k)
+    if result:
+        return result
+
+    # --- ÉTAPE 2 : Recherche dans les blocs de SECOURS (S1 ou S2) ---
+    if backup:
+        print(f"⚠️ [OVERFLOW] Conteneur {container.id} redirigé vers Secours {backup}")
+        return _find_best_in_group(container, yard, backup, top_k)
+
+    return None
+
+
+def _find_best_in_group(
+    container: Container,
+    yard: Yard,
+    allowed_blocks: List[str],
+    top_k: int = 10
+) -> Optional[Tuple[Slot, float]]:
+    """Helper pour chercher récursivement dans un groupe de blocs (EDD -> Relaxed -> Despair)"""
+    
+    # Passe 1 : EDD strict
     valid_slots = get_valid_slots(
         container, yard, allowed_blocks, strict_edd=True, strict_weight=False
     )
 
     if not valid_slots:
-        # --- Passe 2 : Dégradé (si aucun slot optimal trouvé) ---
-        # On relaxe d'abord l'EDD mais on garde si possible la stabilité
+        # Passe 2 : Dégradé (Stabilité prioritée sur EDD)
         valid_slots = get_valid_slots(
             container, yard, allowed_blocks, strict_edd=False, strict_weight=True
         )
         
         if not valid_slots:
-            # Passe 3 : Désespoir (tout slot physique libre, même instable)
-            # La stabilité sera gérée par la pénalité de 50.0 dans le scorer.
+            # Passe 3 : Désespoir (tout slot physique libre)
             valid_slots = get_valid_slots(
                 container, yard, allowed_blocks, strict_edd=False, strict_weight=False
             )
             
         if not valid_slots:
-            return None  # Yard vraiment plein (physiquement)
+            return None
 
     if len(valid_slots) == 1:
         try:
@@ -231,7 +249,6 @@ def find_best_slot(
         except ValueError:
             return None
 
-    # 1. Évaluation Heuristique Rapide (Greedy)
     scored_slots = []
     for slot in valid_slots:
         try:
@@ -243,12 +260,10 @@ def find_best_slot(
     if not scored_slots:
         return None
         
-    # Tri par score croissant (faible score = meilleur) et sélection des K meilleurs
     scored_slots.sort(key=lambda x: x[0])
     top_candidates = [slot for score, slot in scored_slots[:top_k]]
     precomputed = {slot.localization: score for score, slot in scored_slots}
 
-    # 2. Application de l'approche métaheuristique (SA) sur les candidats filtrés.
     return simulated_annealing_optimization(container, yard, top_candidates, precomputed_scores=precomputed)
 
 

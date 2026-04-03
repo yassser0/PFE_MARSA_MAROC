@@ -87,18 +87,31 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
         snapshot_records = snapshot_res.get("cleaned_records", [])
         
         snapshot_placed = 0
+        snapshot_rescued = 0
         snapshot_failed = 0
         db_containers = []
+        rescued_items = []
 
         for item in snapshot_records:
             if item["id"] in container_registry:
+                # Déjà présent (doublon dans le CSV ou rechargement)
                 snapshot_failed += 1
                 continue
+            
+            # Récupération et nettoyage de la taille (Robuste)
+            try:
+                size_int = int(float(item.get("size", 20)))
+                item["size"] = size_int # Mise à jour pour le sauvetage (Phase 2)
+            except (ValueError, TypeError):
+                size_int = 20
+                item["size"] = 20
             
             # Vérifier si un slot est spécifié
             loc = item.get("slot")
             if not loc:
-                snapshot_failed += 1
+                # Pas de slot -> On le sauve via l'optimiseur
+                rescued_items.append(item)
+                snapshot_rescued += 1
                 continue
             
             try:
@@ -111,20 +124,25 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
                 
                 # Validation de la stratégie de taille (SÉPARATION 20ft/40ft)
                 block_id = loc.split('-')[0]
-                allowed_blocks = SIZE_POLICY.get(item["size"], [])
+                policy = SIZE_POLICY.get(size_int, {})
+                allowed_blocks = policy.get('primary', []) + policy.get('backup', [])
+                
+                # RÈGLE DE SAUVETAGE : Si violation de zone, on sauve !
                 if allowed_blocks and block_id not in allowed_blocks:
-                    print(f"⚠️ [STRATEGY] Conteneur {item['id']} ({item['size']}ft) refusé dans le Bloc {block_id}")
-                    snapshot_failed += 1
+                    print(f"🔄 [RESCUE] {item['id']} ({size_int}ft) -> Mauvaise zone {block_id}. Redirection Optimiseur.")
+                    rescued_items.append(item)
+                    snapshot_rescued += 1
                     continue
 
                 container = Container(
                     id=item["id"],
-                    size=item["size"],
+                    size=size_int,
                     weight=item["weight"],
                     departure_time=dep_dt,
                     type=ContainerType(item["type"]),
                 )
                 
+                # Tentative de placement fixe
                 if yard.place_container(slot_obj, container):
                     container_registry[container.id] = container
                     snapshot_placed += 1
@@ -135,21 +153,28 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
                         "type":           container.type.value,
                         "departure_time": container.departure_time,
                         "slot":           slot_obj.localization,
-                        "status":         "yard" # Déjà présent
+                        "status":         "yard"
                     })
                 else:
-                    snapshot_failed += 1
+                    # Slot occupé ou invalide -> On sauve !
+                    print(f"🔄 [RESCUE] {item['id']} -> Slot {loc} occupé ou invalide. Redirection Optimiseur.")
+                    rescued_items.append(item)
+                    snapshot_rescued += 1
             except Exception as e:
-                print(f"Erreur placement snapshot {item.get('id')}: {e}")
-                snapshot_failed += 1
+                print(f"Erreur placement snapshot {item.get('id')}, redirection: {e}")
+                rescued_items.append(item)
+                snapshot_rescued += 1
 
         # --- PHASE 2 : Arrivals (Optimisation) ---
-        app.state.etl_job["message"] = f"Phase 2 : Optimisation de {snapshot_placed} conteneurs existants chargés. Placement des nouvelles arrivées..."
+        app.state.etl_job["message"] = f"Phase 2 : Optimisation de {snapshot_placed} fixes. Sauvetage de {snapshot_rescued} conteneurs..."
         arrivals_res = pipeline.run(arrivals_path)
         arrival_records = arrivals_res.get("cleaned_records", [])
         
-        # Trier par EDD (Inverse)
-        sorted_arrivals = sorted(arrival_records, key=lambda x: x["departure_time"], reverse=True)
+        # Combine Arrivals + Rescued items from Snapshot
+        all_to_optimize = arrival_records + rescued_items
+        
+        # Trier par EDD (Inverse pour LIFO optimizer)
+        sorted_arrivals = sorted(all_to_optimize, key=lambda x: x["departure_time"], reverse=True)
         
         arrival_placed = 0
         arrival_failed = 0
@@ -201,7 +226,8 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
             "pipeline_status": "SUCCESS",
             "snapshot_report": {
                 "total_received": len(snapshot_records),
-                "placed": snapshot_placed,
+                "placed_fixed": snapshot_placed,
+                "rescued": snapshot_rescued,
                 "failed": snapshot_failed
             },
             "arrivals_report": {
@@ -212,7 +238,7 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
             "total_placed": snapshot_placed + arrival_placed,
             "yard_occupancy": f"{yard.occupancy_rate:.1%}",
             "processing_time_ms": duration_ms,
-            "message": f"✅ Hybride réussi : {snapshot_placed} existants + {arrival_placed} nouveaux placés.",
+            "message": f"✅ Hybride réussi : {snapshot_placed} fixes + {arrival_placed} optimisés (incluant {snapshot_rescued} sauvés).",
         }
 
     except Exception as e:

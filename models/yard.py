@@ -76,11 +76,11 @@ class Slot:
         Exemple: "K-019-A-04" -> {'block_id': 'K', 'bay': 19, 'row': 1, 'tier': 4}
         """
         import re
-        # Pattern avec ou sans tirets pour la flexibilité
-        # Groupes: (BLOC)-(TRAVEE)-(CELLULE)-(NIVEAU)
         clean_loc = loc.upper().replace(" ", "")
-        pattern = r"^([A-Z]{1,2})[-]?(\d{3})[-]?([A-Z])[-]?(\d{2})$"
-        match = re.match(pattern, clean_loc)
+        # Pattern flexible : Supporte A, B, C, D mais aussi S1, S2, K019 etc.
+        # Groupes: (BLOC)-(TRAVEE)-(CELLULE)-(NIVEAU)
+        pattern = r"([A-Z0-9]{1,3})[-]?(\d{3})[-]?([A-Z])[-]?(\d{2})"
+        match = re.search(pattern, clean_loc)
         if not match:
             raise ValueError(f"Format de localisation invalide: {loc}")
         
@@ -243,16 +243,17 @@ class Yard:
     n_bays: int
     n_rows: int
     max_height: int
+    block_ids: Optional[List[str]] = None
     blocks: Dict[str, Block] = field(default_factory=dict)
     containers_registry: Dict[str, 'Container'] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Initialise les blocs si non fournis, nommés A, B, C, ..."""
+        """Initialise les blocs. Utilise block_ids si fourni, sinon A, B, C..."""
         if not self.blocks:
-            for i in range(self.n_blocks):
-                block_id = chr(ord('A') + i)  # A, B, C, D, ...
-                self.blocks[block_id] = Block(
-                    block_id=block_id,
+            ids = self.block_ids if self.block_ids else [chr(ord('A') + i) for i in range(self.n_blocks)]
+            for b_id in ids:
+                self.blocks[b_id] = Block(
+                    block_id=b_id,
                     n_bays=self.n_bays,
                     n_rows=self.n_rows,
                     max_height=self.max_height,
