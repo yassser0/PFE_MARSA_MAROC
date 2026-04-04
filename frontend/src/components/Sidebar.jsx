@@ -7,7 +7,7 @@ export default function Sidebar({
   searchQuery, onSearchChange
 }) {
   const [blocks, setBlocks] = useState(4)
-  const [bays, setBays] = useState(24)
+  const [bays, setBays] = useState(12)
   const [rows, setRows] = useState(6)
   const [height, setHeight] = useState(5)
   const [initLoading, setInitLoading] = useState(false)

@@ -34,8 +34,8 @@ async def lifespan(app: FastAPI):
     # Initialisation de la base de données MongoDB
     await db.connect_to_storage()
 
-    # Création du yard initial (Dynamique 4 blocs, 24 travées, 12 rangées)
-    app.state.yard = generate_yard(blocks=4, bays=24, rows=12, max_height=5)
+    # Initialisation du Yard (Défaut : 4 blocs, 12 travées, 6 colonnes, 5 niveaux)
+    app.state.yard = generate_yard(blocks=4, bays=12, rows=6, max_height=5)
     app.state.container_registry = {}
     app.state.last_reset_time = datetime.now()
     
