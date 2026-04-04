@@ -281,12 +281,6 @@ export default function BatchUpload({ onUploadSuccess }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-            {result.snapshot_report && (
-                <div style={statItemStyle}>
-                    <span style={statLabelStyle}>SNAPSHOT (FIXES)</span>
-                    <span style={{ ...statValueStyle, color: '#d4a017' }}>{result.snapshot_report.placed}</span>
-                </div>
-            )}
             {result.arrivals_report && (
                 <div style={statItemStyle}>
                     <span style={statLabelStyle}>ARRIVÉES (OPTIMISÉS)</span>

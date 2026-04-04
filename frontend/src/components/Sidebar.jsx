@@ -6,7 +6,7 @@ export default function Sidebar({
   apiOnline, lastRefresh, onInit, onClear, onRefresh, onUploadSuccess,
   searchQuery, onSearchChange
 }) {
-  const [blocks, setBlocks] = useState(6)
+  const [blocks, setBlocks] = useState(4)
   const [bays, setBays] = useState(24)
   const [rows, setRows] = useState(6)
   const [height, setHeight] = useState(5)
