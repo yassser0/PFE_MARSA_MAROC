@@ -13,6 +13,10 @@ Version : 1.0
 
 import argparse
 import sys
+import os
+
+# Ajout du chemin racine pour permettre les imports de modules (api, services, simulation...)
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 import uvicorn
 
@@ -105,9 +109,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
-    # Ajout du path local pour les imports
-    sys.path.insert(0, ".")
 
     if args.mode == "api":
         run_api(host=args.host, port=args.port, reload=args.reload)

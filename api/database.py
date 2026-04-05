@@ -89,6 +89,19 @@ class MongoDB:
             return []
 
     @classmethod
+    async def clear_all_containers(cls):
+        """Supprime tous les conteneurs de la base de données."""
+        if cls.db is None:
+            return False
+        try:
+            await cls.db.containers.delete_many({})
+            print("🧹 Tous les conteneurs ont été supprimés de MongoDB.")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur lors de la suppression MongoDB : {e}")
+            return False
+
+    @classmethod
     async def close_storage_connection(cls):
         """Ferme la connexion à MongoDB."""
         if cls.client:

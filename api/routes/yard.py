@@ -229,9 +229,22 @@ async def init_yard(request: YardInitRequest):
     _app.state.last_reset_time = datetime.now()
     
     from api.database import db as _db
-    await _db.db.containers.update_many({"slot": {"$exists": True}}, {"$unset": {"slot": ""}})
+    success = await _db.clear_all_containers()
     
-    print(f"🧹 Yard réinitialisé à {_app.state.last_reset_time}")
+    # Nettoyage des rapports analytiques Gold (Fichiers JSON)
+    import os
+    import shutil
+    gold_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gold")
+    if os.path.exists(gold_dir):
+        for filename in os.listdir(gold_dir):
+            file_path = os.path.join(gold_dir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            except Exception as e:
+                print(f"⚠️ Erreur suppression KPI {filename}: {e}")
+    
+    print(f"🧹 Yard et Données réinitialisés à {_app.state.last_reset_time}")
 
     return YardInitResponse(
         message="Yard initialisé avec succès (Filtre temporel activé).",

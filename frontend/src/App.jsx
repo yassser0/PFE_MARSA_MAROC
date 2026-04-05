@@ -31,6 +31,31 @@ export default function App() {
       setYardData(res.data)
       setApiOnline(true)
       setLastRefresh(new Date())
+
+      // Tenter de récupérer les derniers KPIs Gold pour l'affichage analytique
+      try {
+        const kpisRes = await axios.get(`${API_URL}/containers/latest-kpis`)
+        if (kpisRes.data && !kpisRes.data.message) {
+          setGoldKpis(kpisRes.data)
+          if (kpisRes.data.pipeline_quality) {
+            setSilverReport({
+              quality_score: kpisRes.data.pipeline_quality.quality_score_pct,
+              total_raw: kpisRes.data.pipeline_quality.total_raw_ingested,
+              total_cleaned: kpisRes.data.pipeline_quality.total_after_silver,
+              duplicates_removed: kpisRes.data.pipeline_quality.duplicates_removed,
+              invalid_nulls_removed: kpisRes.data.pipeline_quality.invalid_removed,
+            })
+          }
+        } else {
+          // Si aucun KPI n'est trouvé (après un reset), on vide l'état
+          setGoldKpis(null)
+          setSilverReport(null)
+        }
+      } catch (e) {
+        setGoldKpis(null)
+        setSilverReport(null)
+      }
+
     } finally {
       setLoading(false)
     }

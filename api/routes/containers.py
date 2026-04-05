@@ -82,9 +82,19 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
         yard = app.state.yard
         container_registry = app.state.container_registry
         
-        # --- PHASE 1 : Snapshot (Emplacements fixes) ---
-        snapshot_res = pipeline.run(snapshot_path)
-        snapshot_records = snapshot_res.get("cleaned_records", [])
+        # --- OPTIMISATION : Si c'est le même fichier, on ne lance Spark qu'une seule fois ---
+        is_standard_mode = (snapshot_path == arrivals_path)
+        
+        if is_standard_mode:
+            app.state.etl_job["message"] = "Phase unique : Traitement Spark de l'ensemble du fichier..."
+            full_res = pipeline.run(snapshot_path)
+            snapshot_records = full_res.get("cleaned_records", [])
+            arrival_records = snapshot_records # C'est le même set de données
+            arrivals_res = full_res # Pour récupérer les KPIs Gold à la fin
+        else:
+            # --- PHASE 1 : Snapshot (Emplacements fixes) ---
+            snapshot_res = pipeline.run(snapshot_path)
+            snapshot_records = snapshot_res.get("cleaned_records", [])
         
         snapshot_placed = 0
         snapshot_rescued = 0
@@ -166,9 +176,13 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
                 snapshot_rescued += 1
 
         # --- PHASE 2 : Arrivals (Optimisation) ---
-        app.state.etl_job["message"] = f"Phase 2 : Optimisation de {snapshot_placed} fixes. Sauvetage de {snapshot_rescued} conteneurs..."
-        arrivals_res = pipeline.run(arrivals_path)
-        arrival_records = arrivals_res.get("cleaned_records", [])
+        if is_standard_mode:
+            app.state.etl_job["message"] = f"Phase 2 : Placement de {snapshot_placed} fixes + Sauvetage/Optimisation..."
+            # Note: arrivals_res est déjà défini plus haut
+        else:
+            app.state.etl_job["message"] = f"Phase 2 : Optimisation de {snapshot_placed} fixes. Sauvetage de {snapshot_rescued} conteneurs..."
+            arrivals_res = pipeline.run(arrivals_path)
+            arrival_records = arrivals_res.get("cleaned_records", [])
         
         # Combine Arrivals + Rescued items from Snapshot
         all_to_optimize = arrival_records + rescued_items
@@ -235,6 +249,8 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
                 "placed": arrival_placed,
                 "failed": arrival_failed
             },
+            "gold_kpis": arrivals_res.get("gold_kpis"),
+            "silver_report": arrivals_res.get("silver_report"),
             "total_placed": snapshot_placed + arrival_placed,
             "yard_occupancy": f"{yard.occupancy_rate:.1%}",
             "processing_time_ms": duration_ms,
@@ -302,6 +318,33 @@ async def upload_dual_csv(
     background_tasks.add_task(process_hybrid_etl_background, tmp_dir, snap_path, arr_path, request.app)
 
     return {"message": "Traitement hybride démarré", "status": "processing"}
+
+
+@router.get(
+    "/latest-kpis",
+    summary="[GOLD] Récupérer les derniers KPIs calculés",
+    description="Lit le dernier fichier JSON généré dans data/gold pour afficher les statistiques.",
+)
+async def get_latest_kpis():
+    """Charge le JSON le plus récent de la couche Gold."""
+    gold_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gold")
+    if not os.path.exists(gold_dir):
+        return {"message": "Dossier Gold inexistant"}
+    
+    files = [f for f in os.listdir(gold_dir) if f.startswith("kpis_") and f.endswith(".json")]
+    if not files:
+        return {"message": "Aucun KPI Gold trouvé"}
+    
+    # Trier par date (format kpis_YYYYMMDD_HHMMSS.json)
+    latest_file = sorted(files, reverse=True)[0]
+    path = os.path.join(gold_dir, latest_file)
+    
+    import json
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        return {"error": f"Erreur de lecture : {str(e)}"}
 
 
 @router.get(
