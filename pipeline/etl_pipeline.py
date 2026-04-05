@@ -61,7 +61,12 @@ class ETLPipeline:
                 SparkSession.builder
                 .master("local[*]")
                 .appName("MarsaMaroc_ETL_Pipeline_HDFS")
-                .config("spark.driver.memory", "2g")  # Increased for Delta processing
+                # --- Stabilité Windows & Python 3.13 ---
+                .config("spark.driver.memory", "4g")
+                .config("spark.python.worker.reuse", "false")  # RÉPARE WinError 10038
+                .config("spark.driver.extraJavaOptions", "-Djava.net.preferIPv4Stack=true -Dfile.encoding=UTF-8")
+                .config("spark.executor.extraJavaOptions", "-Djava.net.preferIPv4Stack=true -Dfile.encoding=UTF-8")
+                # --- Optimisations SQL ---
                 .config("spark.sql.shuffle.partitions", "4")
                 .config("spark.sql.adaptive.enabled", "true")
                 .config("spark.ui.showConsoleProgress", "false")

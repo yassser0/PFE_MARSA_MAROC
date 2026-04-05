@@ -202,19 +202,27 @@ class GoldLayer:
                 }
 
         # ── Persistance Delta Lake (Data Lakehouse)
-        parquet_path = self._get_output_path(timestamp_str)
-        (
-            df_clean.groupBy("type", "size")
-            .agg(
-                F.count("*").alias("count"),
-                F.round(F.avg("weight"), 2).alias("avg_weight_t"),
-                F.round(F.min("weight"), 2).alias("min_weight_t"),
-                F.round(F.max("weight"), 2).alias("max_weight_t"),
+        try:
+            parquet_path = self._get_output_path(timestamp_str)
+            (
+                df_clean.groupBy("type", "size")
+                .agg(
+                    F.count("*").alias("count"),
+                    F.round(F.avg("weight"), 2).alias("avg_weight_t"),
+                    F.round(F.min("weight"), 2).alias("min_weight_t"),
+                    F.round(F.max("weight"), 2).alias("max_weight_t"),
+                )
+                .write.format("delta")
+                .mode("overwrite")
+                .save(parquet_path)
             )
-            .write.format("delta")
-            .mode("overwrite")
-            .save(parquet_path)
-        )
+            storage_label = f"HDFS : {parquet_path}" if self.storage_mode == "hdfs" else f"LOCAL : {parquet_path}"
+        except Exception as e:
+            # Sur Windows sans winutils, Delta/Parquet peut crasher. 
+            # On ignore pour sauver l'essentiel : le JSON des KPIs.
+            print(f"  [GOLD]   ⚠️ Échec écriture Delta/Parquet (Normal sur Windows dégradé) : {e}")
+            parquet_path = "N/A (Spark/Filesystem Issue)"
+            storage_label = "FAILED (Delta/Parquet)"
 
         # ── JSON local (toujours — pour l'API FastAPI)
         os.makedirs(os.path.abspath(LOCAL_GOLD), exist_ok=True)
