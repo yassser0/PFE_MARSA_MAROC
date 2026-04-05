@@ -103,9 +103,9 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
 /**
  * RTG Crane component (Dynamically adjusted to block width)
  */
-function RTGModel({ position, nRows }) {
+function RTGModel({ position, n_rows }) {
   // width = (nRows * spacing) + security_gap
-  const craneWidth = Math.max(12, nRows * 2.8 + 2.5)
+  const craneWidth = Math.max(12, (n_rows || 6) * 2.8 + 2.5)
   const halfWidth = craneWidth / 2
 
   return (
@@ -257,7 +257,7 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
             {block.block_id}
           </Text>
 
-          <RTGModel position={[0, 0, 0]} nRows={block.n_rows} />
+          <RTGModel position={[0, 0, 0]} n_rows={block.n_rows} />
 
           {block.stacks.map((stack) => {
             // Force visibility if stack contains the searched container
