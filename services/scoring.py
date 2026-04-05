@@ -203,8 +203,12 @@ def calculate_score(slot: Slot, container: Container, yard: Yard) -> float:
     rehandle_score = WEIGHT_REHANDLES * rehandles
 
     # --- Critère 2 : Hauteur actuelle de la pile ---
-    # On favorise les piles plus basses (height = tier - 1 = nb conteneurs déjà là)
-    height_score = WEIGHT_HEIGHT * (slot.tier - 1)
+    # Pour les blocs de secours (S1, S2), on donne un BONUS DE GERBAGE (densifier)
+    # Pour les blocs normaux, on favorise les piles basses (stabilité)
+    if slot.block_id in ["S1", "S2"]:
+        height_score = -5.0 * (slot.tier - 1) # Bonus négatif = meilleur placement
+    else:
+        height_score = WEIGHT_HEIGHT * (slot.tier - 1)
 
     # --- Critère 3 : Distance approximative ---
     distance_score = WEIGHT_DISTANCE * _compute_distance_score(slot, yard)
@@ -223,7 +227,10 @@ def score_breakdown(slot: Slot, container: Container, yard: Yard) -> dict:
     
     rehandles = _estimate_rehandles(stack, slot.tier, container, yard)
     rehandle_score = WEIGHT_REHANDLES * rehandles
-    height_score = WEIGHT_HEIGHT * (slot.tier - 1)
+    if slot.block_id in ["S1", "S2"]:
+        height_score = -5.0 * (slot.tier - 1)
+    else:
+        height_score = WEIGHT_HEIGHT * (slot.tier - 1)
     distance_score = WEIGHT_DISTANCE * _compute_distance_score(slot, yard)
     
     weight_penalty = 0.0
