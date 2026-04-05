@@ -73,16 +73,26 @@ class Slot:
     def from_localization(loc: str) -> Dict[str, any]:
         """
         Parse une chaîne de localisation et retourne les composants.
-        Exemple: "K-019-A-04" -> {'block_id': 'K', 'bay': 19, 'row': 1, 'tier': 4}
+        Supporte : "K-19-A-1", "K019A04", "S1-002-B-05", "A 001 A 1", etc.
         """
         import re
-        clean_loc = loc.upper().replace(" ", "")
-        # Pattern flexible : Supporte A, B, C, D mais aussi S1, S2, K019 etc.
-        # Groupes: (BLOC)-(TRAVEE)-(CELLULE)-(NIVEAU)
-        pattern = r"([A-Z0-9]{1,3})[-]?(\d{3})[-]?([A-Z])[-]?(\d{2})"
+        # Nettoyage agressif : majuscules, suppression des espaces, remplacement des tirets par rien pour le pattern
+        original_loc = loc
+        clean_loc = loc.upper().replace(" ", "").replace("-", "")
+        
+        # Pattern flexible sur la chaîne nettoyée : 
+        # (BLOC: A-Z0-9) - (TRAVEE: 1-3 digits) - (CELLULE: A-Z) - (NIVEAU: 1-2 digits)
+        # On utilise des lookaheads si nécessaire, mais ici on va chercher la structure standard
+        pattern = r"([A-Z0-9]{1,3})(\d{1,3})([A-Z])(\d{1,2})"
         match = re.search(pattern, clean_loc)
+        
         if not match:
-            raise ValueError(f"Format de localisation invalide: {loc}")
+             # Tentative avec tirets si le premier a échoué (format original)
+             pattern_with_dashes = r"([A-Z0-9]{1,3})[-]?(\d{1,3})[-]?([A-Z])[-]?(\d{1,2})"
+             match = re.search(pattern_with_dashes, original_loc.upper())
+
+        if not match:
+            raise ValueError(f"Format de localisation invalide (Audit Fail): {loc}")
         
         block_id, bay_str, row_str, tier_str = match.groups()
         return {

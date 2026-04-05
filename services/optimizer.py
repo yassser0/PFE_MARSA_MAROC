@@ -194,60 +194,52 @@ def find_best_slot(
     allowed_blocks: Optional[List[str]] = None
 ) -> Optional[Tuple[Slot, float]]:
     """
-    Trouve le slot optimal via une approche Hiérarchique :
-    1. PRIORITÉ — Blocs Dédiés (Primaire) avec EDD/Poids dégradé.
-    2. SECOURS  — Si le Primaire est plein, cherche dans les blocs de Backup (S1/S2).
+    Trouve le slot optimal via une approche 'Qualité d'abord' :
+    1. STRICT PRIMAIRE : Cherche une place parfaite (EDD respecté) dans A, B, C, D.
+    2. STRICT SECOURS  : Si aucune place parfaite dans le primaire, cherche une place parfaite dans S1, S2.
+    3. RELAXÉ PRIMAIRE : Si toujours rien, accepte un risque de remutention dans le primaire.
+    4. RELAXÉ SECOURS  : Enfin, accepte un risque de remutention dans le secours.
     """
     policy = SIZE_POLICY.get(container.size, {})
     primary = policy.get('primary', [])
     backup = policy.get('backup', [])
 
-    # --- ÉTAPE 1 : Recherche dans les blocs PRIMAIRES (A, B ou C, D) ---
-    result = _find_best_in_group(container, yard, primary, top_k)
-    if result:
-        return result
+    # --- ÉTAPE 1 : Le "Graal" (Sans rehandle dans le primaire) ---
+    res_p1 = _find_best_with_criteria(container, yard, primary, strict_edd=True, strict_weight=True, top_k=top_k)
+    if res_p1: return res_p1
 
-    # --- ÉTAPE 2 : Recherche dans les blocs de SECOURS (S1 ou S2) ---
+    # --- ÉTAPE 2 : L'Alternative Propre (Sans rehandle dans le secours) ---
     if backup:
-        print(f"⚠️ [OVERFLOW] Conteneur {container.id} redirigé vers Secours {backup}")
-        return _find_best_in_group(container, yard, backup, top_k)
+        res_b1 = _find_best_with_criteria(container, yard, backup, strict_edd=True, strict_weight=True, top_k=top_k)
+        if res_b1:
+            print(f"✨ [QUALITY OVERFLOW] {container.id} -> S1/S2 pour préserver le score d'efficacité.")
+            return res_b1
+
+    # --- ÉTAPE 3 : Dégradation nécessaire (Rehandle dans le primaire) ---
+    res_p2 = _find_best_with_criteria(container, yard, primary, strict_edd=False, strict_weight=True, top_k=top_k)
+    if res_p2: return res_p2
+
+    # --- ÉTAPE 4 : Dernier recours (Rehandle dans le secours) ---
+    if backup:
+        print(f"⚠️ [DESPAIR OVERFLOW] {container.id} -> Redirection backup (plus de place propre nulle part).")
+        return _find_best_with_criteria(container, yard, backup, strict_edd=False, strict_weight=False, top_k=top_k)
 
     return None
 
 
-def _find_best_in_group(
+def _find_best_with_criteria(
     container: Container,
     yard: Yard,
-    allowed_blocks: List[str],
-    top_k: int = 10
+    blocks: List[str],
+    strict_edd: bool,
+    strict_weight: bool,
+    top_k: int
 ) -> Optional[Tuple[Slot, float]]:
-    """Helper pour chercher récursivement dans un groupe de blocs (EDD -> Relaxed -> Despair)"""
+    """Helper pour évaluer un groupe de blocs avec des contraintes spécifiques."""
+    valid_slots = get_valid_slots(container, yard, blocks, strict_edd=strict_edd, strict_weight=strict_weight)
     
-    # Passe 1 : EDD strict
-    valid_slots = get_valid_slots(
-        container, yard, allowed_blocks, strict_edd=True, strict_weight=False
-    )
-
     if not valid_slots:
-        # Passe 2 : Dégradé (Stabilité prioritée sur EDD)
-        valid_slots = get_valid_slots(
-            container, yard, allowed_blocks, strict_edd=False, strict_weight=True
-        )
-        
-        if not valid_slots:
-            # Passe 3 : Désespoir (tout slot physique libre)
-            valid_slots = get_valid_slots(
-                container, yard, allowed_blocks, strict_edd=False, strict_weight=False
-            )
-            
-        if not valid_slots:
-            return None
-
-    if len(valid_slots) == 1:
-        try:
-            return valid_slots[0], calculate_score(valid_slots[0], container, yard)
-        except ValueError:
-            return None
+        return None
 
     scored_slots = []
     for slot in valid_slots:

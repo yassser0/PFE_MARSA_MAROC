@@ -102,7 +102,21 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
         db_containers = []
         rescued_items = []
 
-        for item in snapshot_records:
+        # --- NOUVEAUTÉ : TRI PAR NIVEAU (TIER) ---
+        # On doit traiter les conteneurs du bas vers le haut pour que l'audit 
+        # puisse voir correctement ce qu'il y a en dessous.
+        def get_tier_safe(item):
+            # Tente d'extraire le tier du slot "A-001-A-01" -> 1
+            loc = item.get("slot", "")
+            if not loc: return 0
+            try:
+                return int(loc.split('-')[-1])
+            except:
+                return 0
+
+        snapshot_records_sorted = sorted(snapshot_records, key=get_tier_safe)
+
+        for item in snapshot_records_sorted:
             if item["id"] in container_registry:
                 # Déjà présent (doublon dans le CSV ou rechargement)
                 snapshot_failed += 1
@@ -143,6 +157,21 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
                     rescued_items.append(item)
                     snapshot_rescued += 1
                     continue
+
+                # --- AUDIT DE QUALITÉ SNAPSHOT (ANTI-REHANDLE) ---
+                if slot_obj.tier > 1:
+                    # On regarde la pile en dessous
+                    stack = yard.get_stack(slot_obj.block_id, slot_obj.bay, slot_obj.row)
+                    if stack:
+                        below_slot = stack.slots[slot_obj.tier - 2]
+                        if not below_slot.is_free:
+                            below_cntr = container_registry.get(below_slot.container_id)
+                            # Si le conteneur du dessus (snapshot) part APRÈS celui d'en dessous -> REHANDLE
+                            if below_cntr and dep_dt > below_cntr.departure_time:
+                                print(f"🛡️ [SNAPSHOT AUDIT] {item['id']} à {loc} créerait un rehandle (partant après {below_cntr.id}). Sauvetage...")
+                                rescued_items.append(item)
+                                snapshot_rescued += 1
+                                continue
 
                 container = Container(
                     id=item["id"],
