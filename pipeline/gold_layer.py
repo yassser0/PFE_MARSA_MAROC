@@ -20,7 +20,7 @@ Version : 3.0 (PySpark + HDFS Docker)
 import os
 import json
 from datetime import datetime
-from typing import Dict, Any
+from typing import List, Dict, Any
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
@@ -252,4 +252,100 @@ class GoldLayer:
             **kpis_data,
             "parquet_path": parquet_path,
             "json_path":    json_path,
+        }
+
+    @staticmethod
+    def compute_python(data_list: List[Dict[str, Any]], silver_report: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Calcule les mêmes KPIs que la version Spark, mais en pur Python.
+        Utile comme 'bridge' de stabilité post-optimisation (2000 conteneurs).
+        """
+        import statistics
+        from collections import Counter, defaultdict
+        from datetime import datetime
+
+        total = len(data_list)
+        if total == 0:
+            return {"layer": "GOLD", "status": "EMPTY", "message": "Aucune donnée."}
+
+        # 1. Type & Size distributions
+        types = [d["type"] for d in data_list]
+        sizes = [f"{d['size']}ft" for d in data_list]
+        weights = [float(d["weight"]) for d in data_list]
+        
+        type_cnt = Counter(types)
+        size_cnt = Counter(sizes)
+        
+        type_dist = {
+            t: {
+                "count": c,
+                "percentage": round(c / total * 100, 1),
+                "avg_weight_t": round(sum(w for i, w in enumerate(weights) if types[i] == t) / c, 2)
+            }
+            for t, c in type_cnt.items()
+        }
+        
+        size_dist = {
+            s: {
+                "count": c,
+                "percentage": round(c / total * 100, 1),
+                "avg_weight_t": round(sum(w for i, w in enumerate(weights) if sizes[i] == s) / c, 2)
+            }
+            for s, c in size_cnt.items()
+        }
+
+        # 2. Weight Stats
+        weight_stats = {
+            "avg_t":    round(sum(weights) / total, 2),
+            "min_t":    min(weights),
+            "max_t":    max(weights),
+            "stddev_t": round(statistics.stdev(weights), 2) if total > 1 else 0.0
+        }
+
+        # 3. Time Window
+        deps = [d["departure_time"] if isinstance(d["departure_time"], datetime) else datetime.fromisoformat(str(d["departure_time"])) for d in data_list]
+        time_window = {
+            "earliest_departure": min(deps).isoformat(),
+            "latest_departure":   max(deps).isoformat(),
+        }
+
+        # 4. Efficacité de Gerbage (Stacking) — LOGIQUE IDENTIQUE À SPARK
+        rehandle_count = 0
+        stacks = defaultdict(list)
+        
+        for d in data_list:
+            loc = d.get("slot", "")
+            if loc and "-" in loc:
+                parts = loc.split("-")
+                if len(parts) >= 4:
+                    pile_id = (parts[0], parts[1], parts[2])
+                    tier = int(parts[3])
+                    stacks[pile_id].append((tier, d["departure_time"]))
+        
+        for pile_id, stack_data in stacks.items():
+            # Tri par niveau (sol vers haut)
+            stack_data.sort(key=lambda x: x[0])
+            for i in range(len(stack_data) - 1):
+                below_dep = stack_data[i][1]
+                above_dep = stack_data[i+1][1]
+                # Rehandle if Below leaves SOONER than Above (it's blocked)
+                if below_dep < above_dep:
+                    rehandle_count += 1
+        
+        efficiency = round(max(0, 100 - (rehandle_count / total * 100)), 1)
+        
+        return {
+            "computed_at": datetime.now().isoformat(),
+            "total_containers": total,
+            "type_distribution": type_dist,
+            "size_distribution": size_dist,
+            "weight_stats": weight_stats,
+            "time_window": time_window,
+            "advanced_analytics": {
+                "rehandle_risk_count": rehandle_count,
+                "efficiency_score": efficiency
+            },
+            "pipeline_quality": {
+                "quality_score_pct": 100.0 if not silver_report else silver_report.get("quality_score", 100.0)
+            }
         }

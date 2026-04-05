@@ -20,8 +20,15 @@ import logging
 from typing import Dict, Any
 
 # ── Variables d'environnement Hadoop ─────────────────────────────────────────
-# Necessaire pour que HDFS accepte les ecritures depuis la machine hote
-os.environ.setdefault("PYSPARK_PYTHON", "python")
+# RÉPARATION SPARK : On force l'usage de Python 3.11 (stable) au lieu de 3.13 (flaky)
+# car PySpark 3.5 a des bugs de socket connus avec Python 3.13 sur Windows.
+PYTHON_311_PATH = r"C:\Users\yassi\AppData\Local\Programs\Python\Python311\python.exe"
+if os.path.exists(PYTHON_311_PATH):
+    os.environ["PYSPARK_PYTHON"] = PYTHON_311_PATH
+    os.environ["PYSPARK_DRIVER_PYTHON"] = PYTHON_311_PATH
+else:
+    os.environ.setdefault("PYSPARK_PYTHON", "python")
+
 os.environ.setdefault("HADOOP_USER_NAME", "root")  # Acces HDFS en tant que root
 logging.getLogger("py4j").setLevel(logging.ERROR)
 

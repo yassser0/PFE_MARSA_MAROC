@@ -293,44 +293,29 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
             await db.save_containers(db_containers)
             
             # --- CALCUL ANALYTIQUE DE VÉRITÉ TERRAIN (POST-OPTIMISATION) ---
-            # On recrée un DataFrame Spark à partir de la liste finale pour avoir les vrais KPIs
+            # On utilise le calculateur Python BRIDGE (Infaillible sur Windows)
             try:
-                app.state.etl_job["message"] = "Phase finale : Synchronisation des KPIs avec l'optimisation..."
+                app.state.etl_job["message"] = "Phase finale : Synchronisation des KPIs..."
                 
-                # Préparation des données pour Spark (Dicts simples uniquement)
-                final_data = []
-                now_iso = datetime.now().isoformat()
-                for c in db_containers:
-                    # Conversion forcée pour Spark
-                    final_data.append({
-                        "id": str(c["id"]),
-                        "size": int(c["size"]),
-                        "weight": float(c["weight"]),
-                        "type": str(c["type"]),
-                        "departure_time": c["departure_time"] if isinstance(c["departure_time"], datetime) else datetime.fromisoformat(str(c["departure_time"])),
-                        "slot": str(c["slot"]),
-                        "_ingestion_time": now_iso
-                    })
+                from pipeline.gold_layer import GoldLayer
+                # On passe les données réelles (db_containers) au calculateur Python
+                final_kpis = GoldLayer.compute_python(db_containers, final_silver_report)
                 
-                if final_data:
-                    # Création du DataFrame (Peut échouer sur Windows)
-                    df_final = pipeline.spark.createDataFrame(final_data)
-                    
-                    # Calcul des KPIs finaux
-                    from pipeline.gold_layer import GoldLayer
-                    gold_layer = GoldLayer(pipeline.spark, storage_mode=arrivals_res.get("storage_mode", "local"))
-                    
-                    # Utilisation du silver_report déjà calculé ou fusionné
-                    final_gold = gold_layer.compute(df_final, final_silver_report)
-                    final_gold["is_global"] = True
-                    
-                    # On écrase les KPIs "bruts" par les KPIs "réels"
-                    arrivals_res["gold_kpis"] = final_gold
-            except Exception as spark_err:
-                # Si Spark crashe ici, on prévient mais on ne tue pas le job
-                print(f"⚠️ [SPARK POST-OPT FAIL] Le calcul analytique final a échoué (Windows Issues) : {spark_err}")
-                if "gold_kpis" in arrivals_res:
-                    arrivals_res["gold_kpis"]["message"] = "Statistiques partielles (Spark Sync Issue)"
+                # On sauvegarde aussi ce JSON pour qu'il soit persistant
+                gold_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gold")
+                os.makedirs(gold_dir, exist_ok=True)
+                json_path = os.path.join(gold_dir, f"kpis_final_{int(time.time())}.json")
+                
+                import json
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(final_kpis, f, indent=2)
+                
+                # Mise à jour des résultats pour le frontend
+                arrivals_res["gold_kpis"] = final_kpis
+                print(f"✅ [GOLD BRIDGE] KPIs finaux calculés en Python : {final_kpis['advanced_analytics']['efficiency_score']}%")
+                
+            except Exception as bridge_err:
+                print(f"⚠️ [BRIDGE FAIL] {bridge_err}")
 
         end_time = time.perf_counter()
         duration_ms = round((end_time - start_time) * 1000, 2)
