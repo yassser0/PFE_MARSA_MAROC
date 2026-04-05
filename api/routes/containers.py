@@ -311,6 +311,7 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
                     json.dump(final_kpis, f, indent=2)
                 
                 # Mise à jour des résultats pour le frontend
+                final_kpis["is_global"] = True
                 arrivals_res["gold_kpis"] = final_kpis
                 print(f"✅ [GOLD BRIDGE] KPIs finaux calculés en Python : {final_kpis['advanced_analytics']['efficiency_score']}%")
                 

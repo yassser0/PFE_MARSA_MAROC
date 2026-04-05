@@ -332,8 +332,30 @@ class GoldLayer:
                 if below_dep < above_dep:
                     rehandle_count += 1
         
-        efficiency = round(max(0, 100 - (rehandle_count / total * 100)), 1)
+        # 5. Qualité pipeline (Héritée du rapport Silver fusionné)
+        if silver_report:
+            pipeline_quality = {
+                "total_raw_ingested": silver_report.get("total_raw", total),
+                "total_after_silver": silver_report.get("total_cleaned", total),
+                "duplicates_removed": silver_report.get("duplicates_removed", 0),
+                "invalid_removed": (
+                    silver_report.get("invalid_nulls_removed", 0) +
+                    silver_report.get("invalid_domain_removed", 0)
+                ),
+                "quality_score_pct": silver_report.get("quality_score", 100.0),
+            }
+        else:
+            pipeline_quality = {
+                "total_raw_ingested": total,
+                "total_after_silver": total,
+                "duplicates_removed": 0,
+                "invalid_removed": 0,
+                "quality_score_pct": 100.0,
+            }
         
+        # 6. Calcul Score Final
+        efficiency = round(max(0, 100 - (rehandle_count / total * 100)), 1) if total > 0 else 0.0
+
         return {
             "computed_at": datetime.now().isoformat(),
             "total_containers": total,
@@ -345,7 +367,5 @@ class GoldLayer:
                 "rehandle_risk_count": rehandle_count,
                 "efficiency_score": efficiency
             },
-            "pipeline_quality": {
-                "quality_score_pct": 100.0 if not silver_report else silver_report.get("quality_score", 100.0)
-            }
+            "pipeline_quality": pipeline_quality
         }
