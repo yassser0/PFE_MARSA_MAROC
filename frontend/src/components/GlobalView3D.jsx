@@ -101,18 +101,36 @@ function ContainerModel({ position, color, data, onSelect, isMatch, opacity = 1.
 }
 
 /**
- * RTG Crane component (Blender placeholders included)
+ * RTG Crane component (Dynamically adjusted to block width)
  */
-function RTGModel({ position }) {
-  // const { scene } = useGLTF('/models/rtg_crane.glb', true)
+function RTGModel({ position, nRows }) {
+  // width = (nRows * spacing) + security_gap
+  const craneWidth = Math.max(12, nRows * 2.8 + 2.5)
+  const halfWidth = craneWidth / 2
 
   return (
     <group position={position}>
-      {/* Procedural fallback for now */}
-      <mesh position={[-6, 6, 0]} castShadow> <boxGeometry args={[0.8, 12, 1.2]} /> <meshStandardMaterial color="#ebc034" /> </mesh>
-      <mesh position={[6, 6, 0]} castShadow> <boxGeometry args={[0.8, 12, 1.2]} /> <meshStandardMaterial color="#ebc034" /> </mesh>
-      <mesh position={[0, 12, 0]} castShadow> <boxGeometry args={[13, 1, 3]} /> <meshStandardMaterial color="#ebc034" /> </mesh>
-      <mesh position={[0, 11, 0]}> <boxGeometry args={[2, 0.5, 2]} /> <meshStandardMaterial color="#333" /> </mesh>
+      {/* Structural Legs (Dynamic spacing) */}
+      <mesh position={[-halfWidth, 6, 0]} castShadow> 
+        <boxGeometry args={[1.0, 12, 1.5]} /> 
+        <meshStandardMaterial color="#ebc034" metalness={0.7} roughness={0.3} /> 
+      </mesh>
+      <mesh position={[halfWidth, 6, 0]} castShadow> 
+        <boxGeometry args={[1.0, 12, 1.5]} /> 
+        <meshStandardMaterial color="#ebc034" metalness={0.7} roughness={0.3} /> 
+      </mesh>
+      
+      {/* Top Beam (Dynamic length) */}
+      <mesh position={[0, 12, 0]} castShadow> 
+        <boxGeometry args={[craneWidth + 2, 1.2, 3.5]} /> 
+        <meshStandardMaterial color="#ebc034" metalness={0.6} /> 
+      </mesh>
+      
+      {/* Spreader mechanism */}
+      <mesh position={[0, 10.5, 0]}> 
+        <boxGeometry args={[3, 0.8, 2.5]} /> 
+        <meshStandardMaterial color="#222" /> 
+      </mesh>
     </group>
   )
 }
@@ -239,7 +257,7 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
             {block.block_id}
           </Text>
 
-          <RTGModel position={[0, 0, 0]} />
+          <RTGModel position={[0, 0, 0]} nRows={block.n_rows} />
 
           {block.stacks.map((stack) => {
             // Force visibility if stack contains the searched container
