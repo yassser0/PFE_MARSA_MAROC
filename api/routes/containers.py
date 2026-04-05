@@ -178,12 +178,43 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
         # --- PHASE 2 : Arrivals (Optimisation) ---
         if is_standard_mode:
             app.state.etl_job["message"] = f"Phase 2 : Placement de {snapshot_placed} fixes + Sauvetage/Optimisation..."
-            # Note: arrivals_res est déjà défini plus haut
+            arrivals_res = full_res
+            arrival_records = snapshot_records
+            df_global = full_res.get("df_clean")
+            final_silver_report = full_res.get("silver_report")
         else:
             app.state.etl_job["message"] = f"Phase 2 : Optimisation de {snapshot_placed} fixes. Sauvetage de {snapshot_rescued} conteneurs..."
             arrivals_res = pipeline.run(arrivals_path)
             arrival_records = arrivals_res.get("cleaned_records", [])
-        
+            
+            # --- FUSION ANALYTIQUE GLOBALE ---
+            df_snap = snapshot_res.get("df_clean")
+            df_arr = arrivals_res.get("df_clean")
+            
+            if df_snap and df_arr:
+                df_global = df_snap.union(df_arr)
+                from pipeline.gold_layer import GoldLayer
+                gold_layer = GoldLayer(pipeline.spark, storage_mode=arrivals_res.get("storage_mode", "local"))
+                
+                # Fusion des rapports Silver pour la qualité globale
+                s1 = snapshot_res.get("silver_report", {})
+                s2 = arrivals_res.get("silver_report", {})
+                final_silver_report = {
+                    "total_raw": s1.get("total_raw", 0) + s2.get("total_raw", 0),
+                    "total_cleaned": s1.get("total_cleaned", 0) + s2.get("total_cleaned", 0),
+                    "duplicates_removed": s1.get("duplicates_removed", 0) + s2.get("duplicates_removed", 0),
+                    "invalid_nulls_removed": s1.get("invalid_nulls_removed", 0) + s2.get("invalid_nulls_removed", 0),
+                    "quality_score": round((s1.get("quality_score", 0) + s2.get("quality_score", 0)) / 2, 2)
+                }
+                
+                app.state.etl_job["message"] = "Phase 3 : Calcul des KPIs Globaux du Terminal..."
+                global_gold = gold_layer.compute(df_global, final_silver_report)
+                global_gold["is_global"] = True # Metadata pour le frontend
+                arrivals_res["gold_kpis"] = global_gold
+                arrivals_res["silver_report"] = final_silver_report
+            else:
+                final_silver_report = arrivals_res.get("silver_report")
+
         # Combine Arrivals + Rescued items from Snapshot
         all_to_optimize = arrival_records + rescued_items
         

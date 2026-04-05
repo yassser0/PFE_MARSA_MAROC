@@ -174,6 +174,7 @@ class ETLPipeline:
                 "silver_report": silver_report,
                 "gold_kpis": gold_kpis,
                 "cleaned_records": cleaned_records,
+                "df_clean": df_clean,
             }
 
         except Exception as e:

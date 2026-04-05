@@ -20,7 +20,17 @@ function PerformanceReport({ goldKpis, silverReport }) {
 
   return (
     <div style={{ padding: '15px', color: '#fff', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '25px' }}>
-      
+      {/* Badge Vision Globale (Hybride) */}
+      {goldKpis.is_global && (
+        <div style={{ 
+          background: 'linear-gradient(90deg, #d4a017, #3fb950)', 
+          padding: '4px 12px', borderRadius: '4px', alignSelf: 'flex-start',
+          fontSize: '0.6rem', fontWeight: 900, color: '#000', letterSpacing: '1px'
+        }}>
+          ✨ VISION GLOBALE DU TERMINAL (SÉJOUR + ARRIVÉES)
+        </div>
+      )}
+
       {/* 0. Audit de Qualité (Silver Layer) */}
       {silverReport && (
         <section style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '20px' }}>
