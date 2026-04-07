@@ -7,6 +7,7 @@ import BlockDetailView from './components/BlockDetailView'
 import AnalyticsView from './components/AnalyticsView'
 import ContainerTable from './components/ContainerTable'
 import ContainerInfoDrawer from './components/ContainerInfoDrawer'
+import ErrorBoundary from './components/ErrorBoundary'
 import logo from './assets/logo.png'
 
 const API_URL = 'http://127.0.0.1:8000'
@@ -165,12 +166,14 @@ export default function App() {
           )}
 
           {!loading && yardData && activeTab === 'Vue Globale 3D' && (
-            <GlobalView3D
-              yardData={yardData}
-              searchQuery={searchQuery}
-              onInspectBlock={handleInspectBlock}
-              onSelectContainer={setSelectedContainer}
-            />
+            <ErrorBoundary name="Vue 3D Globale">
+              <GlobalView3D
+                yardData={yardData}
+                searchQuery={searchQuery}
+                onInspectBlock={handleInspectBlock}
+                onSelectContainer={setSelectedContainer}
+              />
+            </ErrorBoundary>
           )}
 
           {!loading && yardData && activeTab === 'Vue Détail Bloc' && (

@@ -2,16 +2,10 @@ import React, { useMemo, useState, Suspense, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import {
   OrbitControls,
-  PerspectiveCamera,
-  Environment,
   ContactShadows,
   Sky,
   Text,
   Grid,
-  useGLTF,
-  Clone,
-  useHelper,
-  Html
 } from '@react-three/drei'
 import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -189,8 +183,9 @@ function SceneContent({ yardData, searchQuery, onSelectContainer, visibleRow, on
   return (
     <>
       <Sky inclination={0.1} distance={450000} />
-      <Environment preset="night" />
-      <ambientLight intensity={0.5} />
+      {/* Environment preset removed — required fetching assets from GitHub which is unreliable offline */}
+      <ambientLight intensity={0.6} />
+      <hemisphereLight intensity={0.5} groundColor="#111" color="#c0d8ff" />
       <directionalLight
         position={[20, 50, 20]}
         intensity={1.2}
