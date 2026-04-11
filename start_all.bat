@@ -1,13 +1,15 @@
 @echo off
-TITLE Marsa Maroc — Big Data Stack Starter
+TITLE Marsa Maroc - Big Data Stack Starter
 echo ============================================================
-echo   MARSA MAROC — Demarrage du Stack Complet
+echo   MARSA MAROC - Demarrage du Stack Complet
 echo   MongoDB + HDFS + API Backend + Frontend React
 echo ============================================================
 echo.
 
-echo [1/5] Demarrage de MongoDB + HDFS NameNode + DataNode (Docker)...
-docker-compose up -d
+echo [1/5] Nettoyage et demarrage de MongoDB + HDFS (Docker)...
+docker stop marsa_hdfs_namenode marsa_hdfs_datanode marsa_maroc_mongodb >nul 2>&1
+docker rm -f marsa_hdfs_namenode marsa_hdfs_datanode marsa_maroc_mongodb >nul 2>&1
+docker-compose up -d --remove-orphans
 timeout /t 5 /nobreak >nul
 
 echo.
