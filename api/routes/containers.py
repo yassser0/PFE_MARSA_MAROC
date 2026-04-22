@@ -59,7 +59,57 @@ ETLUploadResponse.model_rebuild()
 # Endpoints
 # ---------------------------------------------------------------------------
 
-
+@router.get(
+    "/{container_id}",
+    summary="Rechercher un conteneur",
+    description="Retourne les détails et l'emplacement exact d'un conteneur spécifique.",
+)
+async def get_container(container_id: str, request: Request):
+    # 1. On cherche d'abord dans la base de données MongoDB (qui est persistante)
+    try:
+        from api.database import db
+        if db.db is not None:
+            doc = await db.db.containers.find_one({"id": container_id})
+            if doc:
+                return {
+                    "id": doc.get("id"),
+                    "size": doc.get("size"),
+                    "weight": doc.get("weight"),
+                    "type": doc.get("type"),
+                    "departure_time": doc.get("departure_time"),
+                    "location": doc.get("slot"),
+                    "status": doc.get("status", "yard")
+                }
+    except Exception as e:
+        pass # Fallback sur la mémoire si MongoDB échoue
+        
+    # 2. Fallback sur la mémoire RAM
+    registry = request.app.state.container_registry
+    yard = request.app.state.yard
+    
+    if container_id not in registry:
+        raise HTTPException(status_code=404, detail=f"Conteneur {container_id} introuvable dans la base de données.")
+        
+    container = registry[container_id]
+    location = None
+    for block_id, block in yard.blocks.items():
+        for (bay, row), stack in block.stacks.items():
+            for slot in stack.slots:
+                if slot.container_id == container_id:
+                    location = slot.localization
+                    break
+            if location: break
+        if location: break
+        
+    return {
+        "id": container.id,
+        "size": container.size,
+        "weight": container.weight,
+        "type": container.type.value,
+        "departure_time": container.departure_time.isoformat(),
+        "location": location,
+        "status": "yard" if location else "unknown"
+    }
 
 
 
