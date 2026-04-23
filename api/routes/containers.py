@@ -60,6 +60,97 @@ ETLUploadResponse.model_rebuild()
 # ---------------------------------------------------------------------------
 
 @router.get(
+    "/upload-status",
+    summary="[ETL] Statut ou Résultat du traitement courant",
+    description="Permet au frontend de polluer l'état d'avancement du traitement asynchrone.",
+)
+async def get_upload_status(request: Request):
+    """Retourne l'état de `app.state.etl_job`."""
+    return request.app.state.etl_job
+
+
+@router.get(
+    "/latest-kpis",
+    summary="[GOLD] Récupérer les derniers KPIs calculés",
+    description="Lit le dernier fichier JSON généré dans data/gold pour afficher les statistiques.",
+)
+async def get_latest_kpis():
+    """Charge le JSON le plus récent de la couche Gold."""
+    gold_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gold")
+    if not os.path.exists(gold_dir):
+        return {"message": "Dossier Gold inexistant"}
+    
+    files = [f for f in os.listdir(gold_dir) if f.startswith("kpis_") and f.endswith(".json")]
+    if not files:
+        return {"message": "Aucun KPI Gold trouvé"}
+    
+    latest_file = sorted(files, reverse=True)[0]
+    path = os.path.join(gold_dir, latest_file)
+    
+    import json
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        return {"error": f"Erreur de lecture : {str(e)}"}
+
+
+@router.post(
+    "/upload-csv",
+    summary="[ETL] Upload CSV manuel Asynchrone (Pipeline)",
+    description="Accepte un fichier CSV et le traite via la pipeline ETL en arrière-plan.",
+)
+async def upload_csv_etl(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(..., description="Fichier CSV des conteneurs"),
+):
+    """Mode Standard : un seul fichier."""
+    if request.app.state.etl_job.get("status") == "processing":
+        raise HTTPException(status_code=400, detail="Un traitement est déjà en cours.")
+
+    tmp_dir = tempfile.mkdtemp(prefix="marsa_etl_")
+    tmp_path = os.path.join(tmp_dir, "arrivals.csv")
+    
+    with open(tmp_path, "wb") as f:
+        f.write(await file.read())
+
+    background_tasks.add_task(process_hybrid_etl_background, tmp_dir, tmp_path, tmp_path, request.app) 
+    return {"message": "Traitement démarré", "status": "processing"}
+
+
+@router.post(
+    "/upload-dual-csv",
+    summary="[HYBRID] Upload Snapshot + Arrivées",
+    description="Reconstruit le terminal puis optimise les nouvelles arrivées.",
+)
+async def upload_dual_csv(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    snapshot: UploadFile = File(...),
+    arrivals: UploadFile = File(...),
+):
+    if request.app.state.etl_job.get("status") == "processing":
+        raise HTTPException(status_code=400, detail="Un traitement est déjà en cours.")
+
+    tmp_dir = tempfile.mkdtemp(prefix="marsa_hybrid_")
+    snap_path = os.path.join(tmp_dir, "snapshot.csv")
+    arr_path = os.path.join(tmp_dir, "arrivals.csv")
+    
+    with open(snap_path, "wb") as f:
+        f.write(await snapshot.read())
+    with open(arr_path, "wb") as f:
+        f.write(await arrivals.read())
+
+    background_tasks.add_task(process_hybrid_etl_background, tmp_dir, snap_path, arr_path, request.app)
+    return {"message": "Traitement hybride démarré", "status": "processing"}
+
+
+# ---------------------------------------------------------------------------
+# Wildcard route MUST be LAST — catches /{container_id}
+# ---------------------------------------------------------------------------
+
+@router.get(
     "/{container_id}",
     summary="Rechercher un conteneur",
     description="Retourne les détails et l'emplacement exact d'un conteneur spécifique.",
@@ -400,95 +491,4 @@ async def process_hybrid_etl_background(tmp_dir: str, snapshot_path: str, arriva
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-@router.post(
-    "/upload-csv",
-    summary="[ETL] Upload CSV manuel Asynchrone (Pipeline)",
-    description="Accepte un fichier CSV et le traite via la pipeline ETL en arrière-plan.",
-)
-async def upload_csv_etl(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(..., description="Fichier CSV des conteneurs"),
-):
-    """Mode Standard : un seul fichier."""
-    if request.app.state.etl_job.get("status") == "processing":
-        raise HTTPException(status_code=400, detail="Un traitement est déjà en cours.")
-
-    tmp_dir = tempfile.mkdtemp(prefix="marsa_etl_")
-    tmp_path = os.path.join(tmp_dir, "arrivals.csv")
-    
-    with open(tmp_path, "wb") as f:
-        f.write(await file.read())
-
-    # On utilise le logic hybride avec un snapshot vide (simulé ici par un flag ou en passant None)
-    # Mais par souci de simplicité, on peut garder l'ancienne logique ou adapter la nouvelle
-    background_tasks.add_task(process_hybrid_etl_background, tmp_dir, tmp_path, tmp_path, request.app) 
-    # Note: Passer le même fichier deux fois n'est pas idéal, créons un petit helper 
-    # ou gérons le cas "standard" dans process_hybrid
-    return {"message": "Traitement démarré", "status": "processing"}
-
-
-@router.post(
-    "/upload-dual-csv",
-    summary="[HYBRID] Upload Snapshot + Arrivées",
-    description="Reconstruit le terminal puis optimise les nouvelles arrivées.",
-)
-async def upload_dual_csv(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    snapshot: UploadFile = File(...),
-    arrivals: UploadFile = File(...),
-):
-    if request.app.state.etl_job.get("status") == "processing":
-        raise HTTPException(status_code=400, detail="Un traitement est déjà en cours.")
-
-    tmp_dir = tempfile.mkdtemp(prefix="marsa_hybrid_")
-    snap_path = os.path.join(tmp_dir, "snapshot.csv")
-    arr_path = os.path.join(tmp_dir, "arrivals.csv")
-    
-    with open(snap_path, "wb") as f:
-        f.write(await snapshot.read())
-    with open(arr_path, "wb") as f:
-        f.write(await arrivals.read())
-
-    background_tasks.add_task(process_hybrid_etl_background, tmp_dir, snap_path, arr_path, request.app)
-
-    return {"message": "Traitement hybride démarré", "status": "processing"}
-
-
-@router.get(
-    "/latest-kpis",
-    summary="[GOLD] Récupérer les derniers KPIs calculés",
-    description="Lit le dernier fichier JSON généré dans data/gold pour afficher les statistiques.",
-)
-async def get_latest_kpis():
-    """Charge le JSON le plus récent de la couche Gold."""
-    gold_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gold")
-    if not os.path.exists(gold_dir):
-        return {"message": "Dossier Gold inexistant"}
-    
-    files = [f for f in os.listdir(gold_dir) if f.startswith("kpis_") and f.endswith(".json")]
-    if not files:
-        return {"message": "Aucun KPI Gold trouvé"}
-    
-    # Trier par date (format kpis_YYYYMMDD_HHMMSS.json)
-    latest_file = sorted(files, reverse=True)[0]
-    path = os.path.join(gold_dir, latest_file)
-    
-    import json
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        return {"error": f"Erreur de lecture : {str(e)}"}
-
-
-@router.get(
-    "/upload-status",
-    summary="[ETL] Statut ou Résultat du traitement courant",
-    description="Permet au frontend de polluler l'état d'avancement du traitement asynchrone.",
-)
-async def get_upload_status(request: Request):
-    """Retourne l'état de `app.state.etl_job`."""
-    return request.app.state.etl_job
 

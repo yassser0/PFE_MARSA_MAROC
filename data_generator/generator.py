@@ -148,10 +148,11 @@ def generate_yard(
     bays: int = 24,
     rows: int = 6,
     max_height: int = 5,
+    include_extra: bool = True, # Réactivé par défaut
 ) -> Yard:
     """
     Génère un yard avec les blocs demandés par l'utilisateur (A...)
-    ET ajoute systématiquement des blocs de secours (S1, S2).
+    ET ajoute éventuellement des blocs de secours (S1, S2).
     """
     if blocks <= 0 or rows <= 0 or max_height <= 0:
         raise ValueError("Les dimensions du yard doivent être toutes positives.")
@@ -159,9 +160,10 @@ def generate_yard(
     # Blocs standards (A, B, C, D...)
     block_ids = [chr(ord('A') + i) for i in range(blocks)]
     
-    # AJOUT AUTOMATIQUE DES BLOCS DE SECOURS
-    if "S1" not in block_ids: block_ids.append("S1")
-    if "S2" not in block_ids: block_ids.append("S2")
+    # AJOUT CONDITIONNEL DES BLOCS DE SECOURS
+    if include_extra:
+        if "S1" not in block_ids: block_ids.append("S1")
+        if "S2" not in block_ids: block_ids.append("S2")
 
     total_blocks = len(block_ids)
 
